@@ -76,7 +76,7 @@
     "codePlaceholder": "6 位，agent 会告诉你",
     "connect": "连接",
     "firstTime": "第一次使用",
-    "step1": "下载本地桥 <link>{{file}}</link>（需要 Node.js 18 以上，没有其他依赖）。",
+    "step1": "下载本地桥 <dl>{{file}}</dl>（需要 Node.js 18 以上，没有其他依赖）。",
     "step2": "在 agent 里把它添加为 MCP 服务器，例如 Claude Code：",
     "copyCommand": "复制命令",
     "step3": "让 agent 调用 <code>lumisynth_connect</code>，它会给出配对码。",

@@ -78,7 +78,7 @@
     "codePlaceholder": "6 characters, the agent tells you",
     "connect": "Connect",
     "firstTime": "First time",
-    "step1": "Download the local bridge <link>{{file}}</link> (needs Node.js 18 or newer, no other dependencies).",
+    "step1": "Download the local bridge <dl>{{file}}</dl> (needs Node.js 18 or newer, no other dependencies).",
     "step2": "Add it to your agent as an MCP server, e.g. in Claude Code:",
     "copyCommand": "Copy command",
     "step3": "Ask the agent to call <code>lumisynth_connect</code>; it gives you a pairing code.",

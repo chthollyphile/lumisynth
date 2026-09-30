@@ -85,7 +85,7 @@ export function AgentPanel() {
                                 t={t}
                                 i18nKey="agent.step1"
                                 values={{ file: BRIDGE_FILE }}
-                                components={{ link: <a href={`${import.meta.env.BASE_URL}${BRIDGE_FILE}`} download={BRIDGE_FILE} className="text-amber-300 underline" /> }}
+                                components={{ dl: <a href={`${import.meta.env.BASE_URL}${BRIDGE_FILE}`} download={BRIDGE_FILE} className="text-amber-300 underline" /> }}
                             />
                         </li>
                         <li>
