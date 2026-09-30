@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- lumisynth 图标：一束白光射入棱镜，折射后按灰度散开（黑白的色散）。src/app/LumiMark.tsx 是去掉底色的线条版。 -->
+  <rect width="64" height="64" rx="14" fill="#0b0b0c"/>
+  <g transform="translate(0 3)">
+    <g stroke="#fff" stroke-linecap="round" fill="none" stroke-width="3.6">
+      <path d="M3 45 L18.3 32.8"/>
+      <path d="M18.3 32.8 L38 29.4" stroke-width="2.4" stroke-opacity=".4"/>
+      <path d="M38 29.4 L60 26"/>
+      <path d="M38 29.4 L60 34" stroke-opacity=".72"/>
+      <path d="M38 29.4 L60 42" stroke-opacity=".48"/>
+      <path d="M38 29.4 L60 50" stroke-opacity=".26"/>
+    </g>
+    <path d="M29 12 L46 45 H12 Z" fill="#fff" fill-opacity=".08" stroke="#fff" stroke-width="3.8" stroke-linejoin="round"/>
+  </g>
+</svg>

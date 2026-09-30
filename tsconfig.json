@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["node"],
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@pack-src/*": ["./src/packs/*"]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "exclude": ["node_modules", "dist", ".wrangler", ".vercel"]
+}

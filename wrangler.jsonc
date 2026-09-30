@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // 纯静态：没有 Worker 脚本，只发布 dist/ 里的资源，找不到的路径回退到 index.html。
+  "name": "lumisynth",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
