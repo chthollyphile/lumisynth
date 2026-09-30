@@ -12,6 +12,7 @@ import {
     type SceneDirectionResponse,
 } from './sceneDirection';
 import { resolveAiProvider, type ResolvedAiProvider } from './settings';
+import { t } from '@/i18n';
 import { buildThemeSourcePrompt, THEME_GENERATION_PROMPT_PREFIX } from './themePrompt';
 import {
     SEGMENTATION_JSON_SCHEMA,
@@ -28,7 +29,7 @@ export { AiRequestError } from './llm';
 
 const requireProvider = (): ResolvedAiProvider => {
     const provider = resolveAiProvider();
-    if (!provider) throw new AiRequestError('还没有配置 AI：在「AI」侧栏里选择提供方并填写密钥。', 0);
+    if (!provider) throw new AiRequestError(t('ai:errors.notConfigured'), 0);
     return provider;
 };
 
@@ -98,7 +99,7 @@ const segmentationFetch = (signal?: AbortSignal): typeof fetch => async (input, 
     } catch (error) {
         if (signal?.aborted || (error as Error).name === 'AbortError' || (error as Error).name === 'TimeoutError') throw error;
         const host = (() => { try { return new URL(String(input)).host; } catch { return String(input); } })();
-        throw new AiRequestError(`连不上 ${host}：网络不通、地址有误，或者这个服务不允许浏览器直接访问（跨域）。`, 0);
+        throw new AiRequestError(t('ai:errors.unreachable', { label: host, host }), 0);
     }
 };
 
@@ -141,8 +142,8 @@ export const requestSegmentation = async (lines: string[], signal?: AbortSignal)
 export const MAX_DIRECTION_PARAGRAPHS = 120;
 
 export const requestSceneDirection = async (request: SceneDirectionRequest, signal?: AbortSignal): Promise<SceneDirectionResponse & { provider?: string }> => {
-    if (request.packs.length === 0 || request.paragraphs.length === 0) throw new AiRequestError('没有可编排的段落', 400);
-    if (request.paragraphs.length > MAX_DIRECTION_PARAGRAPHS) throw new AiRequestError('段落太多', 400);
+    if (request.packs.length === 0 || request.paragraphs.length === 0) throw new AiRequestError(t('ai:errors.noParagraphs'), 400);
+    if (request.paragraphs.length > MAX_DIRECTION_PARAGRAPHS) throw new AiRequestError(t('ai:errors.tooManyParagraphs'), 400);
     const { value, provider } = await generateJson<unknown>({
         system: SCENE_DIRECTION_SYSTEM_PROMPT,
         user: buildSceneDirectionPrompt(request),
@@ -168,6 +169,6 @@ export const testAiConnection = async (signal?: AbortSignal): Promise<string> =>
         maxOutputTokens: 1024,
         temperature: 0,
     }, provider, signal);
-    if (value?.ok !== true) throw new AiRequestError('模型有回应，但没有按要求返回 JSON', 502);
+    if (value?.ok !== true) throw new AiRequestError(t('ai:errors.notJson'), 502);
     return PROVIDER_DISPLAY[provider.kind];
 };

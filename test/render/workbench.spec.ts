@@ -694,3 +694,28 @@ test('storyboard: drag-select lyric lines into a new paragraph, set kind and pac
     await after.getByRole('button', { name: '合并' }).click();
     await expect.poll(async () => (await paragraphs()).map(p => p.start)).toEqual(before.map(p => p.start));
 });
+
+test.describe('English interface', () => {
+    test.use({ locale: 'en-US' });
+
+    test('follows the browser language, switches to Chinese and remembers it', async ({ page }) => {
+        await page.goto('/?resolution=1');
+        await page.waitForFunction(() => (window.__lumi?.runtimeGeneration ?? 0) > 0, undefined, { timeout: 30_000 });
+        await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+        const titleBar = page.locator('header.titlebar');
+        await expect(titleBar.getByRole('button', { name: 'File', exact: true })).toBeVisible();
+        // 标题栏（菜单、按钮）里没有中文。
+        expect(await titleBar.innerText()).not.toMatch(/[一-鿿]/);
+        await titleBar.getByRole('button', { name: 'View', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Display Language…' })).toBeVisible();
+        await page.keyboard.press('Escape');
+
+        // 「设置」编辑器顶部的下拉框换成中文：界面立即切换，刷新后仍是中文。
+        await page.keyboard.press('Control+,');
+        await page.getByRole('combobox', { name: 'Display language' }).selectOption('zh');
+        await expect(titleBar.getByRole('button', { name: '文件', exact: true })).toBeVisible();
+        await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+        await page.reload();
+        await expect(page.locator('header.titlebar').getByRole('button', { name: '文件', exact: true })).toBeVisible();
+    });
+});

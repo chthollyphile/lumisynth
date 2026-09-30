@@ -2,6 +2,7 @@
 // 导出视频：一个离屏内核按固定帧率逐帧 renderAt(t)，WebCodecs 编码、mediabunny 封装成 mp4 / webm。
 // 画面与预览完全一致（同一个内核、同一套逻辑画幅，只是渲染倍率不同；renderAt 只由 t 决定）。
 // 浏览器没有 WebCodecs 时降级为 MediaRecorder：实时播放一遍并录制画布与音频。
+import { t } from '@/i18n';
 import type { ResolvedAssetClip } from '@/core/assets/clips';
 import type { ResolvedBackgroundClip } from '@/core/assets/background';
 import {
@@ -82,7 +83,7 @@ export const supportsWebCodecs = () => typeof VideoEncoder !== 'undefined' && ty
 
 export class ExportCancelled extends Error {
     constructor() {
-        super('导出已取消');
+        super(t('export:cancelled'));
         this.name = 'ExportCancelled';
     }
 }
@@ -136,7 +137,7 @@ export const exportVideo = async (
     const videoCodec = await getFirstEncodableVideoCodec(VIDEO_CODECS[settings.format], {
         width: settings.width, height: settings.height, quality, frameRate: settings.fps,
     });
-    if (!videoCodec) throw new Error(`这个浏览器不能按 ${settings.width}×${settings.height} 编码 ${settings.format} 视频，换一个分辨率或格式试试`);
+    if (!videoCodec) throw new Error(t('export:errors.cannotEncode', { width: settings.width, height: settings.height, format: settings.format }));
     const audio = input.audio ? sliceAudio(input.audio, settings.start, settings.end) : null;
     const audioCodec = audio
         ? await getFirstEncodableAudioCodec(AUDIO_CODECS[settings.format], { numberOfChannels: audio.numberOfChannels, sampleRate: audio.sampleRate, quality })
@@ -177,7 +178,7 @@ export const exportVideo = async (
         onProgress({ phase: 'finalizing', frame: totalFrames, totalFrames, elapsed: (performance.now() - startedAt) / 1000, remaining: 0 });
         await output.finalize();
         const buffer = (output.target as BufferTarget).buffer;
-        if (!buffer) throw new Error('封装失败：没有得到输出数据');
+        if (!buffer) throw new Error(t('export:errors.noOutput'));
         const mimeType = output.format.mimeType;
         return {
             blob: new Blob([buffer], { type: mimeType }),
@@ -213,7 +214,7 @@ const recordRealtime = async (
     onProgress: (progress: ExportProgress) => void,
     signal?: AbortSignal,
 ): Promise<ExportResult> => {
-    if (typeof MediaRecorder === 'undefined') throw new Error('这个浏览器既没有 WebCodecs 也没有 MediaRecorder，无法导出视频');
+    if (typeof MediaRecorder === 'undefined') throw new Error(t('export:errors.noEncoder'));
     const duration = settings.end - settings.start;
     const totalFrames = Math.max(1, Math.ceil(duration * settings.fps));
     const kernel: LumiKernel = await createKernel(input, settings);

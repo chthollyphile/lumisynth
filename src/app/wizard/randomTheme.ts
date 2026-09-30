@@ -5,22 +5,25 @@
 import type { DualTheme, Theme } from '@/core/types';
 import { DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME } from '@/project/defaults';
 import { contrastRatio, hslToHex } from './coverTheme';
+import { t } from '@/i18n';
+import { themeName } from './themeNames';
 
 type Random = () => number;
 
 const HARMONIES = [
-    { name: '邻近', offsets: [30, -30] },
-    { name: '互补', offsets: [180, 180] },
-    { name: '分裂互补', offsets: [150, 210] },
-    { name: '三色', offsets: [120, 240] },
+    { name: 'analogous', offsets: [30, -30] },
+    { name: 'complementary', offsets: [180, 180] },
+    { name: 'split', offsets: [150, 210] },
+    { name: 'triad', offsets: [120, 240] },
 ] as const;
 
-const HUE_NAMES: Array<[number, string]> = [
-    [15, '朱红'], [40, '橙'], [55, '琥珀'], [70, '金'], [95, '青柠'], [140, '绿'], [170, '翠'],
-    [195, '青'], [215, '天蓝'], [245, '蓝'], [270, '靛'], [295, '紫'], [325, '品红'], [350, '玫红'], [360, '朱红'],
-];
+const HUE_NAMES = [
+    [15, 'vermilion'], [40, 'orange'], [55, 'amber'], [70, 'gold'], [95, 'lime'], [140, 'green'], [170, 'emerald'],
+    [195, 'cyan'], [215, 'sky'], [245, 'blue'], [270, 'indigo'], [295, 'purple'], [325, 'magenta'], [350, 'rose'], [360, 'vermilion'],
+] as const;
 
-export const hueName = (hue: number) => HUE_NAMES.find(([limit]) => ((hue % 360) + 360) % 360 < limit)?.[1] ?? '朱红';
+export const hueName = (hue: number) => t(`wizard:random.hues.${HUE_NAMES.find(([limit]) => ((hue % 360) + 360) % 360 < limit)?.[1] ?? 'vermilion'}`);
+
 
 const between = (random: Random, min: number, max: number) => min + random() * (max - min);
 const wrap = (hue: number) => ((hue % 360) + 360) % 360;
@@ -43,14 +46,14 @@ export const randomTheme = (current: DualTheme = { dark: DEFAULT_DARK_THEME, lig
     const secondHue = wrap(hue + harmony.offsets[1]);
     const vivid = between(random, 0.55, 0.9);
     const tint = between(random, 0.1, 0.35);
-    const label = `随机 · ${hueName(hue)}${harmony.name}`;
+    const label = t('wizard:random.label', { hue: hueName(hue), harmony: t(`wizard:random.harmonies.${harmony.name}`) });
     const shared = { wordColors: current.dark.wordColors, lyricsIcons: current.dark.lyricsIcons };
 
     const darkBackground = hslToHex({ h: hue, s: tint, l: between(random, 0.05, 0.1) });
     const dark: Theme = {
         ...current.dark,
         ...shared,
-        name: `${label} · 深色`,
+        name: themeName(label, 'dark'),
         backgroundColor: darkBackground,
         primaryColor: readable(hue, between(random, 0.05, 0.25), 0.92, darkBackground, 7, true),
         accentColor: readable(accentHue, vivid, between(random, 0.58, 0.7), darkBackground, 4.5, true),
@@ -61,7 +64,7 @@ export const randomTheme = (current: DualTheme = { dark: DEFAULT_DARK_THEME, lig
     const light: Theme = {
         ...current.light,
         ...shared,
-        name: `${label} · 浅色`,
+        name: themeName(label, 'light'),
         backgroundColor: lightBackground,
         primaryColor: readable(hue, between(random, 0.15, 0.35), 0.13, lightBackground, 7, false),
         accentColor: readable(accentHue, vivid, between(random, 0.36, 0.45), lightBackground, 4.5, false),

@@ -17,6 +17,9 @@ import { cx, FileButton } from '../ui';
 import { showContextMenu, type ContextMenuItem } from '../workbench/ContextMenu';
 import { AutoArrangePanel } from '../autoArrange/AutoArrangePanel';
 import { useAutoClipCount } from '../autoArrange/autoArrangeActions';
+import { useTranslation } from 'react-i18next';
+import { t as translate } from '@/i18n';
+import { packShortLabel } from '@/i18n/catalog';
 
 export function AssetThumb({ assetId, className }: { assetId: string; className?: string }) {
     const blob = useSession(state => state.assetBlobs.get(assetId));
@@ -46,7 +49,7 @@ export const insertAssetAtPlayhead = (asset: LibraryAsset, program: ReturnType<t
         : { type: 'absolute', start: time, end: time + 4 };
     const clip = addAssetClip(asset.id, timing);
     setSession({ selection: { type: 'clip', clipId: clip.id } });
-    log(`已把「${asset.name}」放到画面上${timing.type === 'shot' ? '（跟随当前镜头）' : ''}`);
+    log(translate(timing.type === 'shot' ? 'media:library.placedFollowing' : 'media:library.placed', { name: asset.name }));
 };
 
 /** 一次导入多个文件：一个一个来（解码占内存），最后报个总数；坏文件单独报错，不影响其余的。 */
@@ -57,10 +60,16 @@ export const importLibraryFiles = async (files: File[]) => {
             await importLibraryFile(file);
             imported += 1;
         } catch (reason) {
-            log(`「${file.name}」没有导入：${(reason as Error).message}`, 'error');
+            log(translate('media:library.importFailed', { name: file.name, message: (reason as Error).message }), 'error');
         }
     }
-    if (imported > 0) log(files.length === 1 ? `已加入素材库：${files[0].name}` : `已加入素材库：${imported} 个文件${imported < files.length ? `（${files.length - imported} 个失败）` : ''}`);
+    if (imported > 0) {
+        log(files.length === 1
+            ? translate('media:library.imported', { name: files[0].name })
+            : imported < files.length
+                ? translate('media:library.importedSomeFailed', { count: imported, failed: files.length - imported })
+                : translate('media:library.importedMany', { count: imported }));
+    }
 };
 
 export function LibraryView() {
@@ -72,6 +81,7 @@ export function LibraryView() {
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [arrangeOpen, setArrangeOpen] = useState(false);
     const autoCount = useAutoClipCount();
+    const { t } = useTranslation('media');
     const images = assets;
     // 选中的只算还在素材库里的图片（视频不能摆到画面上）。
     const selectedImages = assets.filter(asset => asset.kind === 'image' && selected.has(asset.id)).map(asset => asset.id);
@@ -90,25 +100,25 @@ export function LibraryView() {
 
     const menu = (asset: LibraryAsset): ContextMenuItem[] => [
         ...(asset.kind === 'image' ? [
-            { label: '放到画面上（播放头处）', run: () => insertAssetAtPlayhead(asset, program) },
-            { label: '允许凝彩自动取用', checked: isInTemperaPool(project, asset.id), run: () => setTemperaAuto(asset.id, !isInTemperaPool(project, asset.id)) },
+            { label: t('library.place'), run: () => insertAssetAtPlayhead(asset, program) },
+            { label: t('library.temperaAuto', { pack: packShortLabel('tempera') }), checked: isInTemperaPool(project, asset.id), run: () => setTemperaAuto(asset.id, !isInTemperaPool(project, asset.id)) },
         ] : []),
-        { label: '设为背景：播放头所在的段落', run: () => addBackgroundAt(backgroundSource(asset), 'paragraph') },
-        { label: '设为背景：全曲', run: () => addBackgroundAt(backgroundSource(asset), 'song') },
-        { label: '重命名', run: () => setRenaming(asset.id) },
+        { label: t('library.setBackgroundParagraph'), run: () => addBackgroundAt(backgroundSource(asset), 'paragraph') },
+        { label: t('library.setBackgroundSong'), run: () => addBackgroundAt(backgroundSource(asset), 'song') },
+        { label: t('library.rename'), run: () => setRenaming(asset.id) },
         'separator',
-        { label: `从素材库删除${clips.some(clip => clip.assetId === asset.id) ? '（连同画面上的片段）' : ''}`, run: () => removeLibraryAsset(asset.id) },
+        { label: clips.some(clip => clip.assetId === asset.id) ? t('library.deleteWithClips') : t('library.delete'), run: () => removeLibraryAsset(asset.id) },
     ];
 
     return (
-        <DropZone target="library" label="松开以加入素材库" className="min-h-full space-y-2 px-3 py-2">
+        <DropZone target="library" label={t('library.drop')} className="min-h-full space-y-2 px-3 py-2">
             <FileButton
                 accept={`${IMAGE_ACCEPT},${VIDEO_ACCEPT}`}
                 className="w-full"
                 multiple
                 onFiles={files => void importLibraryFiles(files)}
             >
-                <ImagePlus size={14} /> 添加图片或视频（可多选）
+                <ImagePlus size={14} /> {t('library.add')}
             </FileButton>
             <div className="rounded-md border border-zinc-800">
                 <button
@@ -119,8 +129,8 @@ export function LibraryView() {
                 >
                     {arrangeOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <LayoutTemplate size={13} className="text-amber-400" />
-                    自动编排到画面上
-                    {autoCount > 0 && <span className="ml-auto text-[11px] text-zinc-500">已放 {autoCount} 处</span>}
+                    {t('library.autoArrange')}
+                    {autoCount > 0 && <span className="ml-auto text-[11px] text-zinc-500">{t('library.placedCount', { count: autoCount })}</span>}
                 </button>
                 {arrangeOpen && (
                     <div className="border-t border-zinc-800 px-2.5 py-2.5">
@@ -133,9 +143,9 @@ export function LibraryView() {
             </div>
             {selectedCount > 0 && (
                 <div className="flex items-center gap-1 rounded-md bg-zinc-800/70 px-2 py-1 text-[11px] text-zinc-300">
-                    <span>已选 {selectedCount} 个</span>
-                    <button type="button" className="ml-auto rounded px-1.5 py-0.5 hover:bg-zinc-700" onClick={() => setSelected(new Set(assets.map(asset => asset.id)))}>全选</button>
-                    <button type="button" className="rounded px-1.5 py-0.5 hover:bg-zinc-700" onClick={() => setSelected(new Set())}>取消</button>
+                    <span>{t('library.selected', { count: selectedCount })}</span>
+                    <button type="button" className="ml-auto rounded px-1.5 py-0.5 hover:bg-zinc-700" onClick={() => setSelected(new Set(assets.map(asset => asset.id)))}>{t('library.selectAll')}</button>
+                    <button type="button" className="rounded px-1.5 py-0.5 hover:bg-zinc-700" onClick={() => setSelected(new Set())}>{t('library.selectNone')}</button>
                     <button
                         type="button"
                         className="rounded px-1.5 py-0.5 text-red-300 hover:bg-red-950/60"
@@ -144,15 +154,14 @@ export function LibraryView() {
                             setSelected(new Set());
                         }}
                     >
-                        删除选中
+                        {t('library.deleteSelected')}
                     </button>
                 </div>
             )}
             <div className="text-[11px] text-zinc-500">
-                图片可以摆到画面上：在背景之上、场景之下 / 场景之上 / 最上层三种层级，时间可以跟着镜头、段落或歌词行走。带透明的 png 效果最好。
-                视频只能用作背景（右键「设为背景」）。
+                {t('library.hint')}
             </div>
-            {images.length === 0 && <div className="py-6 text-center text-xs text-zinc-600">素材库是空的</div>}
+            {images.length === 0 && <div className="py-6 text-center text-xs text-zinc-600">{t('library.empty')}</div>}
             <div className="grid grid-cols-2 gap-2">
                 {images.map(asset => {
                     const used = clips.filter(clip => clip.assetId === asset.id).length;
@@ -169,16 +178,16 @@ export function LibraryView() {
                                 <AssetThumb assetId={asset.id} />
                                 <input
                                     type="checkbox"
-                                    aria-label={`选择：${asset.name}`}
+                                    aria-label={t('library.select', { name: asset.name })}
                                     checked={checked}
                                     onChange={() => toggle(asset.id)}
                                     className={cx('absolute top-1 left-1 transition-opacity', checked || selectedCount > 0 ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}
                                 />
-                                {asset.kind === 'video' && <span className="absolute bottom-1 left-1 rounded bg-zinc-950/80 px-1 text-[10px] text-violet-200">视频 · 背景</span>}
+                                {asset.kind === 'video' && <span className="absolute bottom-1 left-1 rounded bg-zinc-950/80 px-1 text-[10px] text-violet-200">{t('library.videoBadge')}</span>}
                                 <div className="absolute top-1 right-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                                    {asset.kind === 'image' && <button type="button" aria-label={`放到画面上：${asset.name}`} title="放到画面上（播放头处）" onClick={() => insertAssetAtPlayhead(asset, program)} className="rounded bg-zinc-950/80 p-1 text-zinc-200 hover:text-amber-300"><Plus size={12} /></button>}
-                                    <button type="button" aria-label={`设为背景：${asset.name}`} title="设为播放头所在段落的背景" onClick={() => addBackgroundAt(backgroundSource(asset), 'paragraph')} className="rounded bg-zinc-950/80 p-1 text-zinc-200 hover:text-violet-300"><Wallpaper size={12} /></button>
-                                    <button type="button" aria-label={`删除：${asset.name}`} title="从素材库删除" onClick={() => removeLibraryAsset(asset.id)} className="rounded bg-zinc-950/80 p-1 text-zinc-400 hover:text-red-300"><Trash2 size={12} /></button>
+                                    {asset.kind === 'image' && <button type="button" aria-label={t('library.placeNamed', { name: asset.name })} title={t('library.place')} onClick={() => insertAssetAtPlayhead(asset, program)} className="rounded bg-zinc-950/80 p-1 text-zinc-200 hover:text-amber-300"><Plus size={12} /></button>}
+                                    <button type="button" aria-label={t('library.setBackgroundNamed', { name: asset.name })} title={t('library.setBackgroundHint')} onClick={() => addBackgroundAt(backgroundSource(asset), 'paragraph')} className="rounded bg-zinc-950/80 p-1 text-zinc-200 hover:text-violet-300"><Wallpaper size={12} /></button>
+                                    <button type="button" aria-label={t('library.deleteNamed', { name: asset.name })} title={t('library.delete')} onClick={() => removeLibraryAsset(asset.id)} className="rounded bg-zinc-950/80 p-1 text-zinc-400 hover:text-red-300"><Trash2 size={12} /></button>
                                 </div>
                             </div>
                             <div className="px-1.5 py-1 text-[11px]">
@@ -196,14 +205,14 @@ export function LibraryView() {
                                 <div className="flex items-center gap-1 text-zinc-500">
                                     {asset.width > 0 && <span>{asset.width}×{asset.height}</span>}
                                     {asset.kind === 'video' && asset.duration ? <span>· {asset.duration.toFixed(1)}s</span> : null}
-                                    {used > 0 && <span>· 画面上 {used} 处</span>}
+                                    {used > 0 && <span>· {t('library.usedCount', { count: used })}</span>}
                                     {asset.kind === 'image' && <button
                                         type="button"
                                         onClick={() => setTemperaAuto(asset.id, !auto)}
-                                        title="允许凝彩按镜头自动取用这张图"
+                                        title={t('library.temperaAutoHint', { pack: packShortLabel('tempera') })}
                                         className={cx('ml-auto rounded px-1', auto ? 'bg-amber-400/15 text-amber-300' : 'text-zinc-600 hover:text-zinc-300')}
                                     >
-                                        凝彩
+                                        {packShortLabel('tempera')}
                                     </button>}
                                 </div>
                             </div>

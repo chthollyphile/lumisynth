@@ -8,6 +8,7 @@ import { newId } from '@/project/defaults';
 import { updateProject, useProjectStore } from '@/project/store';
 import { OUTPUT_LOGICAL_SIZES } from '@/project/types';
 import { log } from '../output';
+import { t } from '@/i18n';
 
 export const useArrangeOptions = create<ArrangeOptions>(() => DEFAULT_ARRANGE_OPTIONS);
 export const setArrangeOptions = (patch: Partial<ArrangeOptions>) => useArrangeOptions.setState(patch);
@@ -34,8 +35,8 @@ export const autoArrangeAssets = (assetIds: string[] | null = null, options: Arr
     );
     updateProject(project => ({ ...project, assetClips: [...project.assetClips.filter(clip => !isAutoClip(clip)), ...clips] }));
     log(clips.length > 0
-        ? `自动编排：${images.length} 张图放进了 ${clips.length} 个镜头`
-        : images.length === 0 ? '自动编排：素材库里还没有图片' : '自动编排：没有合适的镜头（先放歌词）');
+        ? t('media:autoArrange.placed', { images: t('media:autoArrange.imageCount', { count: images.length }), count: clips.length })
+        : images.length === 0 ? t('media:autoArrange.noImages') : t('media:autoArrange.noShots'));
     return clips.length;
 };
 

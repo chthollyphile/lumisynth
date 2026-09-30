@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { StyleThumb, useThumbnailLook } from '../library/StyleThumb';
 import { fuzzyScore } from './CommandPalette';
 import { dropDown, overlay, popTransition, presence } from '../motion';
+import { useTranslation } from 'react-i18next';
 
 export interface QuickPickItem<T> {
     label: string;
@@ -60,6 +61,7 @@ function QuickPickBody({ request }: { request: QuickPickRequest }) {
     const input = useRef<HTMLInputElement>(null);
     const list = useRef<HTMLUListElement>(null);
     const look = useThumbnailLook();
+    const { t } = useTranslation('workbench');
     const hasThumbnails = request.items.some(item => item.thumbnail);
 
     const items = useMemo(() => request.items
@@ -84,7 +86,7 @@ function QuickPickBody({ request }: { request: QuickPickRequest }) {
         <motion.div {...presence} variants={overlay} transition={popTransition} className="no-drag fixed inset-0 z-50" onMouseDown={() => close(undefined)}>
             <motion.div
                 role="dialog"
-                aria-label={request.title ?? '快速选择'}
+                aria-label={request.title ?? t('quickPick.title')}
                 variants={dropDown}
                 transition={popTransition}
                 className="mx-auto mt-2 w-[min(600px,calc(100vw-32px))] origin-top overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl"
@@ -94,7 +96,7 @@ function QuickPickBody({ request }: { request: QuickPickRequest }) {
                 <input
                     ref={input}
                     value={query}
-                    placeholder={request.placeholder ?? '输入以过滤'}
+                    placeholder={request.placeholder ?? t('quickPick.placeholder')}
                     onChange={event => {
                         setQuery(event.target.value);
                         setActive(0);
@@ -115,7 +117,7 @@ function QuickPickBody({ request }: { request: QuickPickRequest }) {
                     className="h-9 w-full border-b border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none select-text"
                 />
                 <ul ref={list} role="listbox" className="max-h-96 overflow-y-auto py-1">
-                    {items.length === 0 && <li className="px-3 py-2 text-sm text-zinc-500">没有匹配项</li>}
+                    {items.length === 0 && <li className="px-3 py-2 text-sm text-zinc-500">{t('palette.empty')}</li>}
                     {items.map((item, index) => (
                         <li
                             key={`${item.label}-${index}`}
@@ -135,7 +137,7 @@ function QuickPickBody({ request }: { request: QuickPickRequest }) {
                             )}
                             <span className="min-w-0 flex-1 truncate">
                                 {item.label}
-                                {item.picked && <span className="ml-2 text-xs text-amber-300">当前</span>}
+                                {item.picked && <span className="ml-2 text-xs text-amber-300">{t('quickPick.current')}</span>}
                             </span>
                             {(item.description || item.detail) && <span className="shrink-0 text-xs text-zinc-500">{item.description ?? item.detail}</span>}
                         </li>

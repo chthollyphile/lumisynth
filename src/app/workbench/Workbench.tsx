@@ -16,6 +16,7 @@ import { StatusBar, type StatusItem } from './StatusBar';
 import { Wizard } from '../wizard/Wizard';
 import { useWizard } from '../wizard/wizardStore';
 import { fadeIn } from '../motion';
+import { useTranslation } from 'react-i18next';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -38,6 +39,7 @@ export function Workbench({
 }) {
     const layout = useLayout();
     const dragStart = useRef(0);
+    const { t } = useTranslation('workbench');
     const sideView = sideViews.find(view => view.id === layout.activeSideView) ?? sideViews[0];
     // 向导开着时占住辅助栏的位置（比检查器宽），检查器暂时让开。
     const wizardOpen = useWizard(state => state.open);
@@ -67,7 +69,7 @@ export function Workbench({
                         />
                     </>
                 )}
-                <div className="flex min-w-0 flex-1 flex-col"><ErrorBoundary name="编辑区">{editor}</ErrorBoundary></div>
+                <div className="flex min-w-0 flex-1 flex-col"><ErrorBoundary name={t('editor.area')}>{editor}</ErrorBoundary></div>
                 {wizardOpen && <Wizard docked />}
                 {!wizardOpen && layout.auxBarVisible && (
                     <>

@@ -14,6 +14,7 @@ import { formatMs } from '../lyrics/WordStrip';
 import { startWordDrag, type WordDragTarget } from '../lyrics/wordDrag';
 import { clock } from '../playback';
 import { cx } from '../ui';
+import { useTranslation } from 'react-i18next';
 
 /** 低于这个缩放（像素 / 秒）逐字挤在一起看不清，退回整行显示。 */
 export const MIN_WORD_ZOOM = 30;
@@ -29,6 +30,7 @@ export function TimelineWords({ lines, zoom, scrollLeft, viewport, duration, tim
 }) {
     const analysis = useSession(state => state.analysis);
     const selection = useSession(state => state.selection);
+    const { t } = useTranslation('arrange');
     const onsets = useMemo(() => (analysis ? detectOnsets(analysis) : []), [analysis]);
     const units = useMemo(() => lines.map(line => editableUnits(line)), [lines]);
     const from = scrollLeft / zoom - 1;
@@ -84,15 +86,15 @@ export function TimelineWords({ lines, zoom, scrollLeft, viewport, duration, tim
                                     {width >= 14 ? unit.text : ''}
                                     {width >= 8 && (
                                         <>
-                                            <div aria-label={`${unit.text} 的开始`} onPointerDown={event => drag(event, { type: 'edge', index: unitIndex, edge: 'start' })} className="absolute inset-y-0 left-0 w-1 cursor-ew-resize hover:bg-amber-300/70" />
-                                            <div aria-label={`${unit.text} 的结束`} onPointerDown={event => drag(event, { type: 'edge', index: unitIndex, edge: 'end' })} className="absolute inset-y-0 right-0 w-1 cursor-ew-resize hover:bg-amber-300/70" />
+                                            <div aria-label={t('timeline.wordStart', { text: unit.text })} onPointerDown={event => drag(event, { type: 'edge', index: unitIndex, edge: 'start' })} className="absolute inset-y-0 left-0 w-1 cursor-ew-resize hover:bg-amber-300/70" />
+                                            <div aria-label={t('timeline.wordEnd', { text: unit.text })} onPointerDown={event => drag(event, { type: 'edge', index: unitIndex, edge: 'end' })} className="absolute inset-y-0 right-0 w-1 cursor-ew-resize hover:bg-amber-300/70" />
                                         </>
                                     )}
                                 </div>
                             );
                         })}
-                        <div aria-label="行的开始" onPointerDown={event => drag(event, { type: 'line', edge: 'start' })} className="absolute inset-y-0 -left-1 z-10 w-1.5 cursor-ew-resize hover:bg-amber-300/70" />
-                        <div aria-label="行的结束" onPointerDown={event => drag(event, { type: 'line', edge: 'end' })} className="absolute inset-y-0 -right-1 z-10 w-1.5 cursor-ew-resize hover:bg-amber-300/70" />
+                        <div aria-label={t('timeline.lineStart')} onPointerDown={event => drag(event, { type: 'line', edge: 'start' })} className="absolute inset-y-0 -left-1 z-10 w-1.5 cursor-ew-resize hover:bg-amber-300/70" />
+                        <div aria-label={t('timeline.lineEnd')} onPointerDown={event => drag(event, { type: 'line', edge: 'end' })} className="absolute inset-y-0 -right-1 z-10 w-1.5 cursor-ew-resize hover:bg-amber-300/70" />
                     </div>
                 );
             })}

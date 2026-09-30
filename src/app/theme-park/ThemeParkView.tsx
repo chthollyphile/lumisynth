@@ -12,7 +12,8 @@ import { ThemeParkColorPanel } from './ThemeParkColorPanel';
 import { ThemeParkContentPanel } from './ThemeParkContentPanel';
 import { ThemeParkDetailsPanel } from './ThemeParkDetailsPanel';
 import { randomTheme } from '../wizard/randomTheme';
-import { buildRecommendedColors, isDualThemeNameValid, MODE_LABELS, type ThemeParkTab } from './themeParkDraft';
+import { buildRecommendedColors, isDualThemeNameValid, modeLabel, type ThemeParkTab } from './themeParkDraft';
+import { useTranslation } from 'react-i18next';
 import {
     applyThemeDraft,
     isThemeDraftDirty,
@@ -30,17 +31,11 @@ import {
     useThemePark,
 } from './themeParkStore';
 
-const TABS: Array<{ id: ThemeParkTab; label: string }> = [
-    { id: 'colors', label: '颜色' },
-    { id: 'details', label: '详情' },
-    { id: 'content', label: '内容' },
-    { id: 'ai', label: 'AI' },
-];
-
-const SOURCE_LABELS = { preset: '预设', ai: 'AI 生成', custom: '自定义' } as const;
+const TABS: ThemeParkTab[] = ['colors', 'details', 'content', 'ai'];
 
 export function ThemeParkView() {
     useEffect(() => openThemeDraft(), []);
+    const { t } = useTranslation('theme');
     const { draft, base, mode, colorKey, tab } = useThemePark();
     const project = useProjectStore(state => state.project.theme);
     const coverColors = useSession(state => state.coverColors);
@@ -52,7 +47,7 @@ export function ThemeParkView() {
     const dirty = isThemeDraftDirty({ draft, base });
     const nameValid = isDualThemeNameValid(draft);
     const apply = () => {
-        if (applyThemeDraft()) log(`已应用主题：${safeDraft.dark.name} / ${safeDraft.light.name}`);
+        if (applyThemeDraft()) log(t('view.applied', { dark: safeDraft.dark.name, light: safeDraft.light.name }));
     };
 
     return (
@@ -60,38 +55,38 @@ export function ThemeParkView() {
             <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800 px-4 py-2.5">
                 <Palette size={16} className="text-amber-400" />
                 <div className="min-w-0 flex-1">
-                    <div className="text-sm text-zinc-100">主题编辑器</div>
+                    <div className="text-sm text-zinc-100">{t('view.title')}</div>
                     <div className="truncate text-[11px] text-zinc-500">
                         {dirty
-                            ? `有未应用的修改 · 预览显示的是草稿（${MODE_LABELS[mode]}）`
-                            : `工程主题：${project.dual[project.variant].name}（${SOURCE_LABELS[project.source]}，${MODE_LABELS[project.variant]}）`}
+                            ? t('view.dirty', { mode: modeLabel(mode) })
+                            : t('view.current', { name: project.dual[project.variant].name, source: t(`view.sources.${project.source}`), mode: modeLabel(project.variant) })}
                     </div>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => replaceThemeDraft(randomTheme(safeDraft))} title="随机抽一组配色（深色、浅色一起换，名字跟着换；关键字与图标保留）。点「应用」才写进工程">
-                    <Dices size={13} /> 随机配色
+                <Button size="sm" variant="ghost" onClick={() => replaceThemeDraft(randomTheme(safeDraft))} title={t('view.randomHint')}>
+                    <Dices size={13} /> {t('view.random')}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={resetThemeDraftColors} title="四个颜色换回默认主题的（名字、描述、关键字与图标保留）">
-                    <RotateCcw size={13} /> 默认配色
+                <Button size="sm" variant="ghost" onClick={resetThemeDraftColors} title={t('view.defaultsHint')}>
+                    <RotateCcw size={13} /> {t('view.defaults')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={revertThemeDraft} disabled={!dirty}>
-                    <Undo2 size={13} /> 放弃修改
+                    <Undo2 size={13} /> {t('view.discard')}
                 </Button>
-                <Button size="sm" variant="primary" onClick={apply} disabled={!dirty || !nameValid} title={nameValid ? '写进工程（可以撤销）' : '深色、浅色主题都需要名字'}>
-                    <Check size={13} /> 应用
+                <Button size="sm" variant="primary" onClick={apply} disabled={!dirty || !nameValid} title={nameValid ? t('view.applyHint') : t('view.nameRequired')}>
+                    <Check size={13} /> {t('view.apply')}
                 </Button>
             </header>
 
-            <div role="tablist" aria-label="主题编辑器" className="flex shrink-0 gap-1 border-b border-zinc-800 px-3">
+            <div role="tablist" aria-label={t('view.title')} className="flex shrink-0 gap-1 border-b border-zinc-800 px-3">
                 {TABS.map(item => (
                     <button
-                        key={item.id}
+                        key={item}
                         type="button"
                         role="tab"
-                        aria-selected={tab === item.id}
-                        onClick={() => setThemeParkTab(item.id)}
-                        className={cx('border-b-2 px-3 py-2 text-xs', tab === item.id ? 'border-amber-400 text-zinc-100' : 'border-transparent text-zinc-500 hover:text-zinc-300')}
+                        aria-selected={tab === item}
+                        onClick={() => setThemeParkTab(item)}
+                        className={cx('border-b-2 px-3 py-2 text-xs', tab === item ? 'border-amber-400 text-zinc-100' : 'border-transparent text-zinc-500 hover:text-zinc-300')}
                     >
-                        {item.label}
+                        {t(`view.tabs.${item}`)}
                     </button>
                 ))}
             </div>

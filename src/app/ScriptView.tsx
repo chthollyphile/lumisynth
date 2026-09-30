@@ -30,6 +30,7 @@ import { revealInTimeline } from './timeline/reveal';
 import { lumiscript, scriptTheme, settingsLanguage, toCmDiagnostics } from './script/lumiscript';
 import { onScriptImport } from './script/scriptImport';
 import { Button, cx, Segmented, Toggle } from './ui';
+import { useTranslation } from 'react-i18next';
 
 type Mode = 'script' | 'settings' | 'json';
 
@@ -74,6 +75,7 @@ export function ScriptView() {
     const selection = useSession(state => state.selection);
     const location = usePlayheadLocation(program);
     const [mode, setMode] = useState<Mode>('script');
+    const { t } = useTranslation(['script', 'common']);
     const [includeNative, setIncludeNative] = useState(false);
     const [dirty, setDirty] = useState(false);
     const [base, setBase] = useState('');
@@ -102,7 +104,9 @@ export function ScriptView() {
     const generatedRef = useRef(generated);
     generatedRef.current = generated;
     const stale = dirty && generated.text !== base;
-    const label = mode === 'settings' ? '设置' : '剧本';
+    // 句首用 label，句中用 name（英文要小写）。
+    const label = mode === 'settings' ? t('labels.settings') : t('labels.script');
+    const name = mode === 'settings' ? t('names.settings') : t('names.script');
 
     const load = (text: string) => {
         const editor = view.current;
@@ -128,15 +132,16 @@ export function ScriptView() {
         editor.dispatch(setDiagnostics(editor.state, toCmDiagnostics(editor.state.doc, result.diagnostics)));
         const { errors, warnings } = summarize(result.diagnostics);
         if (!result.ok) {
-            log(`${label}没有应用：${errors.length} 处错误\n${errors.slice(0, 5).map(formatDiagnostic).join('\n')}`, 'warn');
+            log(`${t('notApplied', { label, count: errors.length })}\n${errors.slice(0, 5).map(formatDiagnostic).join('\n')}`, 'warn');
             return;
         }
         setConfirmStale(false);
         if (result.changes.length === 0) {
-            log(`${label}没有修改${warnings.length ? `（${warnings.length} 处提示）` : ''}`);
+            log(warnings.length ? t('unchangedWithHints', { label, count: warnings.length }) : t('unchanged', { label }));
             return;
         }
-        log(`${label}已应用：${result.changes.join('；')}${warnings.length ? `（${warnings.length} 处提示，见「问题」面板）` : ''}`);
+        const changes = result.changes.join(t('changeSeparator'));
+        log(warnings.length ? t('appliedWithHints', { label, changes, count: warnings.length }) : t('applied', { label, changes }));
         reloadNext.current = true;
     };
     const applyRef = useRef(apply);
@@ -265,7 +270,7 @@ export function ScriptView() {
         const text = await file.text();
         const asSettings = /\.json$/i.test(file.name) || text.trimStart().startsWith('{');
         const target: Mode = asSettings ? 'settings' : 'script';
-        log(`已导入 ${file.name} 到「${asSettings ? '设置' : '剧本'}」：检查无误后按 Ctrl+S 或「应用」`);
+        log(t('imported', { file: file.name, target: asSettings ? t('labels.settings') : t('labels.script') }));
         if (target === mode && view.current) {
             view.current.dispatch({ changes: { from: 0, to: view.current.state.doc.length, insert: text } });
             return;
@@ -290,22 +295,22 @@ export function ScriptView() {
                 <Segmented<Mode>
                     value={mode}
                     onChange={setMode}
-                    options={[{ value: 'script', label: '剧本' }, { value: 'settings', label: '设置' }, { value: 'json', label: 'JSON' }]}
+                    options={[{ value: 'script', label: t('labels.script') }, { value: 'settings', label: t('labels.settings') }, { value: 'json', label: 'JSON' }]}
                 />
                 {mode !== 'json' && (
                     <>
-                        <Button size="sm" onClick={() => apply()} disabled={!dirty} title={`应用${label}（Ctrl+S）`}>
-                            <Play size={12} /> 应用
+                        <Button size="sm" onClick={() => apply()} disabled={!dirty} title={t('applyHint', { name })}>
+                            <Play size={12} /> {t('apply')}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => load(generated.text)} disabled={!dirty && !stale} title={`丢掉改动，载入当前工程的${label}`}>
-                            <RotateCcw size={12} /> 重新载入
+                        <Button size="sm" variant="ghost" onClick={() => load(generated.text)} disabled={!dirty && !stale} title={t('reloadHint', { name })}>
+                            <RotateCcw size={12} /> {t('reload')}
                         </Button>
-                        {dirty && <span className={cx('text-xs', stale ? 'text-amber-300' : 'text-zinc-400')}>{stale ? `已改动 · ${label}已过期` : '已改动'}</span>}
+                        {dirty && <span className={cx('text-xs', stale ? 'text-amber-300' : 'text-zinc-400')}>{stale ? t('dirtyStale', { label }) : t('dirty')}</span>}
                     </>
                 )}
-                {mode === 'json' && <div className="w-44"><Toggle checked={includeNative} onChange={setIncludeNative} label="含各包原生数据" /></div>}
+                {mode === 'json' && <div className="w-44"><Toggle checked={includeNative} onChange={setIncludeNative} label={t('includeNative')} /></div>}
                 <div className="flex-1" />
-                <Button size="sm" variant="ghost" title="导入剧本（.lumiscript）或设置（.json）" aria-label="导入" onClick={() => fileInput.current?.click()}>
+                <Button size="sm" variant="ghost" title={t('importHint')} aria-label={t('import')} onClick={() => fileInput.current?.click()}>
                     <Upload size={12} />
                 </Button>
                 <input
@@ -320,20 +325,20 @@ export function ScriptView() {
                         if (file) void importFile(file);
                     }}
                 />
-                <Button size="sm" variant="ghost" title="复制" aria-label="复制" onClick={() => void navigator.clipboard?.writeText(content()).then(() => log('已复制到剪贴板'))}>
+                <Button size="sm" variant="ghost" title={t('copy')} aria-label={t('copy')} onClick={() => void navigator.clipboard?.writeText(content()).then(() => log(t('copied')))}>
                     <Copy size={12} />
                 </Button>
-                <Button size="sm" variant="ghost" title="下载" aria-label="下载" onClick={() => downloadBlob(new Blob([content()], { type: 'text/plain;charset=utf-8' }), fileName)}>
+                <Button size="sm" variant="ghost" title={t('download')} aria-label={t('download')} onClick={() => downloadBlob(new Blob([content()], { type: 'text/plain;charset=utf-8' }), fileName)}>
                     <Download size={12} />
                 </Button>
             </div>
             {mode !== 'json' && confirmStale && (
                 <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-amber-900/60 bg-amber-950/40 px-3 py-1.5 text-xs text-amber-200 select-none" role="alert">
-                    <span>{label}载入之后工程在别处改过。仍然应用的话，{label}里写到的部分会盖掉那些改动。</span>
+                    <span>{t('staleWarning', { name })}</span>
                     <div className="flex-1" />
-                    <Button size="sm" onClick={() => apply(true)}>仍然应用</Button>
-                    <Button size="sm" variant="ghost" onClick={() => load(generated.text)}>重新载入</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirmStale(false)}>取消</Button>
+                    <Button size="sm" onClick={() => apply(true)}>{t('applyAnyway')}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => load(generated.text)}>{t('reload')}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmStale(false)}>{t('common:cancel')}</Button>
                 </div>
             )}
             {mode !== 'json'

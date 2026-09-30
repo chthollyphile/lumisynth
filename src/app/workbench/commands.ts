@@ -4,9 +4,10 @@ import { create } from 'zustand';
 
 export interface Command {
     id: string;
-    title: string;
+    /** 显示时才取文字（跟着界面语言变）。 */
+    title: () => string;
     /** 命令面板里显示为「类别: 标题」。 */
-    category?: string;
+    category?: () => string;
     /** 形如 `Ctrl+Shift+P`、`Space`、`F1`。Ctrl 在 macOS 上也匹配 Cmd。 */
     keybinding?: string;
     /** 在输入框里也响应（例如 Ctrl+S）。默认输入框里不触发。 */

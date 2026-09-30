@@ -5,7 +5,9 @@ import { AssetsPanel } from '@/app/AssetsPanel';
 import { useEffectiveLyrics } from '@/app/DerivedProvider';
 import { clock, syncPlaying, usePlayback } from '@/app/playback';
 import { Preview } from '@/app/Preview';
-import { packLabel, StylePanel } from '@/app/StylePanel';
+import { StylePanel } from '@/app/StylePanel';
+import { packLabel } from '@/i18n/catalog';
+import { useTranslation } from 'react-i18next';
 import { formatTime } from '@/app/Transport';
 import { OutputView } from '@/app/views/OutputView';
 import { AgentPanel } from '@/app/views/AgentPanel';
@@ -38,24 +40,25 @@ function useStatusItems(): StatusItem[] {
     const time = usePlayback(state => state.time);
     const { format } = useEffectiveLyrics();
     const problems = useProblems();
+    const { t } = useTranslation('workbench');
     const items: StatusItem[] = [
-        { id: 'project', side: 'left', content: project.name, command: 'project.open', title: '打开工程' },
+        { id: 'project', side: 'left', content: project.name, command: 'project.open', title: t('status.openProject') },
         {
             id: 'problems',
             side: 'left',
             content: <><TriangleAlert size={12} /> {problems.length}</>,
             command: 'view.problems',
-            title: '问题',
+            title: t('views.problems'),
         },
     ];
-    if (progress !== null) items.push({ id: 'analysis', side: 'left', content: `分析音频 ${Math.round(progress * 100)}%` });
+    if (progress !== null) items.push({ id: 'analysis', side: 'left', content: t('status.analyzing', { percent: Math.round(progress * 100) }) });
     else if (status) items.push({ id: 'status', side: 'left', content: status });
     items.push(
         { id: 'time', side: 'right', content: formatTime(time) },
-        { id: 'format', side: 'right', content: format ? format.toUpperCase() : '纯音乐', command: 'view.assets' },
-        { id: 'pack', side: 'right', content: project.direction.mode === 'mix' ? '按段落混用' : packLabel(project.direction.pack), command: 'view.look' },
+        { id: 'format', side: 'right', content: format ? format.toUpperCase() : t('status.instrumental'), command: 'view.assets' },
+        { id: 'pack', side: 'right', content: project.direction.mode === 'mix' ? t('status.mix') : packLabel(project.direction.pack), command: 'view.look' },
         { id: 'aspect', side: 'right', content: project.aspect, command: 'view.look' },
-        { id: 'seed', side: 'right', content: `seed ${project.seed}`, command: 'arrange.reseed', title: '换一个 seed' },
+        { id: 'seed', side: 'right', content: `seed ${project.seed}`, command: 'arrange.reseed', title: t('status.reseed') },
     );
     return items;
 }
@@ -69,6 +72,7 @@ export function App() {
     const [ready, setReady] = useState(false);
     const problems = useProblems();
     const statusItems = useStatusItems();
+    const { t } = useTranslation('workbench');
 
     useEffect(() => {
         void bootstrapProject().finally(() => {
@@ -86,20 +90,20 @@ export function App() {
             {mobile ? <MobileShell preview={preview} /> : <Workbench
                 menus={APP_MENUS}
                 sideViews={[
-                    { id: 'assets', title: '歌曲', icon: FolderOpen, component: () => <AssetsPanel /> },
-                    { id: 'outline', title: '大纲', icon: ListTree, component: () => <OutlineView /> },
-                    { id: 'look', title: '画面与编排', icon: Palette, component: () => <StylePanel /> },
-                    { id: 'library', title: '风格库', icon: LayoutGrid, component: () => <StyleLibrary /> },
-                    { id: 'assetLibrary', title: '素材库', icon: Images, component: () => <LibraryView /> },
-                    { id: 'ai', title: 'AI', icon: Sparkles, component: () => <AiPanel /> },
-                    { id: 'agent', title: 'Agent', icon: Bot, component: () => <AgentPanel /> },
+                    { id: 'assets', title: t('views.assets'), icon: FolderOpen, component: () => <AssetsPanel /> },
+                    { id: 'outline', title: t('views.outline'), icon: ListTree, component: () => <OutlineView /> },
+                    { id: 'look', title: t('views.look'), icon: Palette, component: () => <StylePanel /> },
+                    { id: 'library', title: t('views.library'), icon: LayoutGrid, component: () => <StyleLibrary /> },
+                    { id: 'assetLibrary', title: t('views.assetLibrary'), icon: Images, component: () => <LibraryView /> },
+                    { id: 'ai', title: t('views.ai'), icon: Sparkles, component: () => <AiPanel /> },
+                    { id: 'agent', title: t('views.agent'), icon: Bot, component: () => <AgentPanel /> },
                 ]}
                 panelViews={[
-                    { id: 'timeline', title: '时间轴', component: () => <Timeline /> },
-                    { id: 'problems', title: '问题', badge: () => problems.length || null, component: () => <ProblemsPanel /> },
-                    { id: 'output', title: '输出', component: () => <OutputView /> },
+                    { id: 'timeline', title: t('views.timeline'), component: () => <Timeline /> },
+                    { id: 'problems', title: t('views.problems'), badge: () => problems.length || null, component: () => <ProblemsPanel /> },
+                    { id: 'output', title: t('views.output'), component: () => <OutputView /> },
                 ]}
-                auxTitle="检查器"
+                auxTitle={t('views.inspector')}
                 auxBar={<Inspector />}
                 editor={<EditorArea preview={preview} />}
                 statusItems={statusItems}

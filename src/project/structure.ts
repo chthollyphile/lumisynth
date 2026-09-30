@@ -9,10 +9,7 @@ import type { LineAnchor } from '@/core/lyrics/edits';
 import { newId } from './defaults';
 import { updateProject } from './store';
 import type { LumiProject } from './types';
-
-const KIND_LABELS: Record<ParagraphKind, string> = {
-    breath: '换气', verse: '主歌', lift: '上扬', chorus: '副歌', break: '间奏', outro: '尾声',
-};
+import { t } from '@/i18n';
 
 export interface StructureChange {
     project: LumiProject;
@@ -74,15 +71,15 @@ export const dropParagraphSettings = (project: LumiProject, anchor: LineAnchor, 
     let next = project;
     if (what.direction && next.paragraphDirections.some(item => sameLine(item.anchor.line, anchor))) {
         next = { ...next, paragraphDirections: next.paragraphDirections.filter(item => !sameLine(item.anchor.line, anchor)) };
-        dropped.push('编排');
+        dropped.push(t('project:structure.parts.direction'));
     }
     if (what.transition && next.overrides.some(op => op.type === 'transition' && sameLine(op.anchor.line, anchor))) {
         next = { ...next, overrides: next.overrides.filter(op => !(op.type === 'transition' && sameLine(op.anchor.line, anchor))) };
-        dropped.push('转场');
+        dropped.push(t('project:structure.parts.transition'));
     }
     if (what.kind && next.structureEdits.some(edit => edit.type === 'kind' && sameLine(edit.anchor, anchor))) {
         next = { ...next, structureEdits: next.structureEdits.filter(edit => !(edit.type === 'kind' && sameLine(edit.anchor, anchor))) };
-        dropped.push('性质');
+        dropped.push(t('project:structure.parts.kind'));
     }
     return { project: next, dropped };
 };
@@ -100,7 +97,7 @@ export const planSplit = (project: LumiProject, program: LumiProgram, lineIndex:
     const anchor = line.anchor;
     let next = setBoundary(project, program, anchor, true);
     next = moveParagraphSettings(next, paragraph.anchor.line, anchor, { direction: 'copy', transition: 'move', kind: 'copy' });
-    return { project: next, notes: [`第 ${paragraph.index + 1} 段在第 ${lineIndex + 1} 行拆开，后半段沿用原来的编排`] };
+    return { project: next, notes: [t('project:structure.split', { n: paragraph.index + 1, line: lineIndex + 1 })] };
 };
 
 /** 把 paragraph 并进上一段。它自己的编排与性质丢掉；两段之间的转场丢掉，它的出场转场归合并后的段落。 */
@@ -114,9 +111,9 @@ export const planMergeWithPrevious = (project: LumiProject, program: LumiProgram
     next = moveParagraphSettings(next, anchor, previous.anchor.line, { direction: 'keep', transition: 'move', kind: 'keep' });
     const own = dropParagraphSettings(next, anchor, { direction: true, kind: true });
     next = own.project;
-    const notes = [`第 ${paragraph.index + 1} 段并进了第 ${previous.index + 1} 段`];
-    if (own.dropped.length > 0) notes.push(`被并入的那一段的手动${own.dropped.join('、')}已丢弃`);
-    if (between.dropped.length > 0) notes.push('两段之间的手动转场已丢弃');
+    const notes = [t('project:structure.merged', { n: paragraph.index + 1, into: previous.index + 1 })];
+    if (own.dropped.length > 0) notes.push(t('project:structure.droppedOwn', { parts: own.dropped.join(t('project:structure.listSeparator')) }));
+    if (between.dropped.length > 0) notes.push(t('project:structure.droppedBetween'));
     return { project: next, notes };
 };
 
@@ -130,7 +127,7 @@ export const planMoveStart = (project: LumiProject, program: LumiProgram, paragr
     let next = setBoundary(project, program, from, false);
     next = setBoundary(next, program, target.anchor, true);
     next = moveParagraphSettings(next, from, target.anchor, { direction: 'move', transition: 'move', kind: 'move' });
-    return { project: next, notes: [`第 ${paragraph.index + 1} 段的开头移到了第 ${lineIndex + 1} 行`] };
+    return { project: next, notes: [t('project:structure.moved', { n: paragraph.index + 1, line: lineIndex + 1 })] };
 };
 
 /**
@@ -160,7 +157,8 @@ export const planIsolate = (project: LumiProject, program: LumiProgram, from: nu
     }
     if (next === project) return null;
     const own = current.paragraphs.find(paragraph => paragraph.lineIndices[0] === from);
-    notes.push(`第 ${from + 1}${to > from ? `–${to + 1}` : ''} 行切成了独立的一段${own ? `（第 ${own.index + 1} 段）` : ''}`);
+    const lines = to > from ? `${from + 1}–${to + 1}` : `${from + 1}`;
+    notes.push(own ? t('project:structure.isolatedAs', { lines, n: own.index + 1, count: to - from + 1 }) : t('project:structure.isolated', { lines, count: to - from + 1 }));
     return { project: next, notes };
 };
 
@@ -169,7 +167,7 @@ export const planResetStructure = (project: LumiProject, program: LumiProgram, p
     const lines = new Set(paragraph.lineIndices);
     const next = project.structureEdits.filter(edit => edit.type === 'kind' || !lines.has(edit.anchor.index));
     if (next.length === project.structureEdits.length) return null;
-    return { project: { ...project, structureEdits: next }, notes: [`第 ${paragraph.index + 1} 段交回自动分段`] };
+    return { project: { ...project, structureEdits: next }, notes: [t('project:structure.reset', { n: paragraph.index + 1 })] };
 };
 
 /** 以 anchor 开头的段落的性质（'auto' 交回自动判断）。 */
@@ -181,7 +179,7 @@ export const withParagraphKind = (project: LumiProject, anchor: LineAnchor, kind
 export const planSetKind = (project: LumiProject, paragraph: LumiParagraph, kind: ParagraphKind | 'auto'): StructureChange => {
     return {
         project: withParagraphKind(project, paragraph.anchor.line, kind),
-        notes: [kind === 'auto' ? `第 ${paragraph.index + 1} 段的性质交回自动判断` : `第 ${paragraph.index + 1} 段的性质改为${KIND_LABELS[kind]}`],
+        notes: [kind === 'auto' ? t('project:structure.kindAuto', { n: paragraph.index + 1 }) : t('project:structure.kind', { n: paragraph.index + 1, kind: t(`common:paragraphKinds.${kind}`) })],
     };
 };
 

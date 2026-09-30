@@ -1,6 +1,7 @@
 // src/app/inspector/StylePickerGrid.tsx
 // 检查器「换成…」：带缩略图的风格网格。鼠标停留或方向键移动时预览区临时套用（peek），
 // 点击或回车才写进工程；离开网格或按 Esc 恢复。
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { LumiShot } from '@/compiler/types';
 import type { StyleDef } from '@/packs/contract';
@@ -27,6 +28,7 @@ export const peekStyle = (shot: LumiShot, style: string) => {
 
 export function StylePickerGrid({ shot, styles }: { shot: LumiShot; styles: StyleDef[] }) {
     const look = useThumbnailLook();
+    const { t } = useTranslation('inspector');
     const [active, setActive] = useState(-1);
     const container = useRef<HTMLDivElement>(null);
 
@@ -64,7 +66,7 @@ export function StylePickerGrid({ shot, styles }: { shot: LumiShot; styles: Styl
         <div
             ref={container}
             role="listbox"
-            aria-label="风格"
+            aria-label={t('picker.label')}
             tabIndex={0}
             onKeyDown={onKeyDown}
             onMouseLeave={() => {
@@ -90,7 +92,7 @@ export function StylePickerGrid({ shot, styles }: { shot: LumiShot; styles: Styl
                             peekStyle(shot, style.id);
                         }}
                         onClick={() => commit(style)}
-                        title={`${style.kind}（${style.mood}）——停留试看，点击替换`}
+                        title={t('picker.hover', { kind: style.kind, mood: style.mood })}
                         className={cx(
                             'overflow-hidden rounded border text-left',
                             current ? 'border-amber-400' : index === active ? 'border-zinc-400' : 'border-zinc-800 hover:border-zinc-600',

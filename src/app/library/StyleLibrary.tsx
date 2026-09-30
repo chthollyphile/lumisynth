@@ -14,6 +14,8 @@ import { useProgram } from '../DerivedProvider';
 import { cx, Segmented } from '../ui';
 import { StyleThumb, useThumbnailLook } from './StyleThumb';
 import type { ThumbnailLook } from './thumbnails';
+import { useTranslation } from 'react-i18next';
+import { packLabel } from '@/i18n/catalog';
 
 function StyleCard({ style, look, favorite, blocked, onPick, onPeek, pickable }: {
     style: StyleDef;
@@ -24,9 +26,10 @@ function StyleCard({ style, look, favorite, blocked, onPick, onPeek, pickable }:
     onPeek: () => void;
     pickable: boolean;
 }) {
+    const { t } = useTranslation('inspector');
     return (
         <div className={cx('group relative overflow-hidden rounded-md border bg-zinc-900', blocked ? 'border-red-900/70 opacity-50' : 'border-zinc-800')}>
-            <button type="button" onClick={onPick} onMouseEnter={() => { if (pickable) onPeek(); }} disabled={!pickable} className="block w-full disabled:cursor-default" title={pickable ? '停留试看，点击把选中的镜头换成这个风格' : style.kind}>
+            <button type="button" onClick={onPick} onMouseEnter={() => { if (pickable) onPeek(); }} disabled={!pickable} className="block w-full disabled:cursor-default" title={pickable ? t('library.pickHint') : style.kind}>
                 <StyleThumb style={style.id} look={look} />
                 <div className="flex items-center justify-between px-1.5 py-1 text-[11px]">
                     <span className="truncate text-zinc-200">{style.kind}</span>
@@ -34,10 +37,10 @@ function StyleCard({ style, look, favorite, blocked, onPick, onPeek, pickable }:
                 </div>
             </button>
             <div className="absolute top-1 right-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100" style={favorite || blocked ? { opacity: 1 } : undefined}>
-                <button type="button" onClick={() => toggleFavorite(style.id)} className={cx('rounded bg-zinc-950/80 p-1', favorite ? 'text-amber-300' : 'text-zinc-400 hover:text-zinc-100')} aria-label="收藏">
+                <button type="button" onClick={() => toggleFavorite(style.id)} className={cx('rounded bg-zinc-950/80 p-1', favorite ? 'text-amber-300' : 'text-zinc-400 hover:text-zinc-100')} aria-label={t('style.favorite')}>
                     <Heart size={12} fill={favorite ? 'currentColor' : 'none'} />
                 </button>
-                <button type="button" onClick={() => toggleBlocked(style.id)} className={cx('rounded bg-zinc-950/80 p-1', blocked ? 'text-red-400' : 'text-zinc-400 hover:text-zinc-100')} aria-label="屏蔽">
+                <button type="button" onClick={() => toggleBlocked(style.id)} className={cx('rounded bg-zinc-950/80 p-1', blocked ? 'text-red-400' : 'text-zinc-400 hover:text-zinc-100')} aria-label={t('style.block')}>
                     <Ban size={12} />
                 </button>
             </div>
@@ -52,6 +55,7 @@ export function StyleLibrary({ wide = false }: { wide?: boolean }) {
     const [pack, setPack] = useState<PackId>(() => listPacks()[0]?.id ?? '');
     const [family, setFamily] = useState<string | null>(null);
     const [filter, setFilter] = useState<'all' | 'favorites' | 'blocked'>('all');
+    const { t } = useTranslation('inspector');
 
     const look = useThumbnailLook();
     const favorites = new Set(project.library.favorites);
@@ -72,10 +76,10 @@ export function StyleLibrary({ wide = false }: { wide?: boolean }) {
                     setPack(value);
                     setFamily(null);
                 }}
-                options={listPacks().map(item => ({ value: item.id, label: item.label }))}
+                options={listPacks().map(item => ({ value: item.id, label: packLabel(item.id) }))}
             />
             <div className="flex flex-wrap gap-1">
-                <button type="button" onClick={() => setFamily(null)} className={cx('rounded border px-1.5 py-0.5 text-[11px]', family === null ? 'border-amber-400 text-amber-100' : 'border-zinc-700 text-zinc-400')}>全部</button>
+                <button type="button" onClick={() => setFamily(null)} className={cx('rounded border px-1.5 py-0.5 text-[11px]', family === null ? 'border-amber-400 text-amber-100' : 'border-zinc-700 text-zinc-400')}>{t('library.all')}</button>
                 {(findPack(pack)?.families ?? []).map(item => (
                     <button key={item.id} type="button" onClick={() => setFamily(item.id)} className={cx('rounded border px-1.5 py-0.5 text-[11px]', family === item.id ? 'border-amber-400 text-amber-100' : 'border-zinc-700 text-zinc-400')}>
                         {item.label}
@@ -85,14 +89,14 @@ export function StyleLibrary({ wide = false }: { wide?: boolean }) {
             <Segmented<'all' | 'favorites' | 'blocked'>
                 value={filter}
                 onChange={setFilter}
-                options={[{ value: 'all', label: '全部' }, { value: 'favorites', label: `收藏 ${project.library.favorites.length}` }, { value: 'blocked', label: `屏蔽 ${project.library.blocked.length}` }]}
+                options={[{ value: 'all', label: t('library.all') }, { value: 'favorites', label: t('library.favorites', { count: project.library.favorites.length }) }, { value: 'blocked', label: t('library.blocked', { count: project.library.blocked.length }) }]}
             />
             <div className="text-[11px] text-zinc-500">
                 {selectedShot
                     ? selectedShot.pack === pack || project.direction.shotMixing
-                        ? '点卡片把选中的镜头换成该风格。'
-                        : '选中的镜头属于另一个包；开启「按 shot 混用」后才能跨包换风格。'
-                    : '收藏的风格更常被自动选中，屏蔽的不再被自动选中。'}
+                        ? t('library.pickShot')
+                        : t('library.otherPack')
+                    : t('library.hint')}
             </div>
             <div className={cx('grid gap-2', wide ? 'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]' : 'grid-cols-2')} onMouseLeave={() => setPeek(null)}>
                 {styles.map(style => (

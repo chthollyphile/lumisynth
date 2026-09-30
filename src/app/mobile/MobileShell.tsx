@@ -23,19 +23,21 @@ import { cx, Segmented } from '../ui';
 import { AiPanel } from '../views/AiPanel';
 import { OutlineView } from '../views/OutlineView';
 import { openExportDialog } from '../export/ExportDialog';
+import { useTranslation } from 'react-i18next';
 
 type Sheet = 'assets' | 'shot' | 'look' | 'ai';
 
-const SHEETS: Record<Sheet, { title: string; icon: typeof Palette }> = {
-    assets: { title: '素材', icon: FolderOpen },
-    shot: { title: '镜头', icon: Clapperboard },
-    look: { title: '外观', icon: Palette },
-    ai: { title: 'AI', icon: Sparkles },
+const SHEETS: Record<Sheet, { icon: typeof Palette }> = {
+    assets: { icon: FolderOpen },
+    shot: { icon: Clapperboard },
+    look: { icon: Palette },
+    ai: { icon: Sparkles },
 };
 
 function BottomSheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
     // 只从标题栏拖：内容区要留给滚动。
     const drag = useDragControls();
+    const { t } = useTranslation('common');
     return (
         <motion.div {...presence} variants={overlay} className="fixed inset-0 z-40 flex flex-col justify-end">
             {/* 不压暗：抽屉开着时还要看着上面的预览调。 */}
@@ -64,7 +66,7 @@ function BottomSheet({ title, onClose, children }: { title: string; onClose: () 
                     <h2 className="flex-1 text-sm font-semibold text-zinc-100">{title}</h2>
                     <button
                         type="button"
-                        aria-label="关闭"
+                        aria-label={t('close')}
                         onPointerDown={event => event.stopPropagation()}
                         onClick={onClose}
                         className="flex h-11 w-11 items-center justify-center rounded-full text-zinc-400 active:bg-zinc-800"
@@ -81,13 +83,14 @@ function BottomSheet({ title, onClose, children }: { title: string; onClose: () 
 function ShotSheet() {
     const selection = useSession(state => state.selection);
     const [view, setView] = useState<'inspector' | 'outline'>(selection.type === 'none' ? 'outline' : 'inspector');
+    const { t } = useTranslation('workbench');
     return (
         <>
             <div className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-900 px-4 py-2">
                 <Segmented<'inspector' | 'outline'>
                     value={view}
                     onChange={setView}
-                    options={[{ value: 'inspector', label: '当前选中' }, { value: 'outline', label: '全曲大纲' }]}
+                    options={[{ value: 'inspector', label: t('mobile.selection') }, { value: 'outline', label: t('mobile.outline') }]}
                 />
             </div>
             {view === 'inspector' ? <Inspector /> : <OutlineView />}
@@ -100,6 +103,7 @@ export function MobileShell({ preview }: { preview: ReactNode }) {
     const name = useProjectStore(state => state.project.name);
     const canUndo = useProjectStore(state => state.past.length > 0);
     const canRedo = useProjectStore(state => state.future.length > 0);
+    const { t } = useTranslation(['workbench', 'commands']);
 
     const iconButton = 'flex h-11 w-11 items-center justify-center rounded-full text-zinc-300 active:bg-zinc-800 disabled:opacity-30';
 
@@ -112,19 +116,20 @@ export function MobileShell({ preview }: { preview: ReactNode }) {
                     <span>lumi<span className="text-amber-400">synth</span></span>
                 </span>
                 <span className="min-w-0 flex-1 truncate pl-2 text-xs text-zinc-500">{name}</span>
-                <button type="button" aria-label="撤销" disabled={!canUndo} onClick={() => useProjectStore.getState().undo()} className={iconButton}><Undo2 size={18} /></button>
-                <button type="button" aria-label="重做" disabled={!canRedo} onClick={() => useProjectStore.getState().redo()} className={iconButton}><Redo2 size={18} /></button>
+                <button type="button" aria-label={t('commands:titles.edit.undo')} disabled={!canUndo} onClick={() => useProjectStore.getState().undo()} className={iconButton}><Undo2 size={18} /></button>
+                <button type="button" aria-label={t('commands:titles.edit.redo')} disabled={!canRedo} onClick={() => useProjectStore.getState().redo()} className={iconButton}><Redo2 size={18} /></button>
                 <button
                     type="button"
-                    aria-label="更多"
+                    aria-label={t('mobile.more')}
                     onClick={event => showContextMenu(event, [
-                        { label: '新建工程', run: () => executeCommand('project.new') },
-                        { label: '打开工程…', run: () => executeCommand('project.open') },
-                        { label: '导入 .lumi…', run: () => executeCommand('project.import') },
-                        { label: '另存为 .lumi…', run: () => executeCommand('project.export') },
+                        { label: t('commands:titles.project.new'), run: () => executeCommand('project.new') },
+                        { label: t('commands:titles.project.open'), run: () => executeCommand('project.open') },
+                        { label: t('mobile.importLumi'), run: () => executeCommand('project.import') },
+                        { label: t('mobile.exportLumi'), run: () => executeCommand('project.export') },
                         'separator',
-                        { label: '命令面板', run: () => executeCommand('workbench.commandPalette') },
-                        { label: '切换到桌面布局', run: () => setLayout({ uiMode: 'desktop' }) },
+                        { label: t('activityBar.commandPalette'), run: () => executeCommand('workbench.commandPalette') },
+                        { label: t('commands:titles.workbench.language'), run: () => executeCommand('workbench.language') },
+                        { label: t('commands:titles.view.layoutDesktop'), run: () => setLayout({ uiMode: 'desktop' }) },
                     ])}
                     className={iconButton}
                 >
@@ -139,7 +144,7 @@ export function MobileShell({ preview }: { preview: ReactNode }) {
             <div className="min-h-0 flex-1 border-t border-zinc-800">
                 <Timeline />
             </div>
-            <nav aria-label="功能" className="flex h-14 shrink-0 items-stretch border-t border-zinc-800 bg-zinc-900" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <nav aria-label={t('mobile.nav')} className="flex h-14 shrink-0 items-stretch border-t border-zinc-800 bg-zinc-900" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
                 {(Object.keys(SHEETS) as Sheet[]).map(id => {
                     const Icon = SHEETS[id].icon;
                     return (
@@ -151,7 +156,7 @@ export function MobileShell({ preview }: { preview: ReactNode }) {
                             className={cx('flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px]', sheet === id ? 'text-amber-300' : 'text-zinc-400 active:text-zinc-100')}
                         >
                             <Icon size={20} strokeWidth={1.7} />
-                            {SHEETS[id].title}
+                            {t(`mobile.sheets.${id}`)}
                         </button>
                     );
                 })}
@@ -164,12 +169,12 @@ export function MobileShell({ preview }: { preview: ReactNode }) {
                     className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] text-zinc-400 active:text-zinc-100"
                 >
                     <Download size={20} strokeWidth={1.7} />
-                    导出
+                    {t('mobile.export')}
                 </button>
             </nav>
             <AnimatePresence>
                 {sheet && (
-                    <BottomSheet title={SHEETS[sheet].title} onClose={() => setSheet(null)}>
+                    <BottomSheet title={t(`mobile.sheets.${sheet}`)} onClose={() => setSheet(null)}>
                         {sheet === 'assets' && <AssetsPanel />}
                         {sheet === 'shot' && <ShotSheet />}
                         {sheet === 'look' && <StylePanel />}

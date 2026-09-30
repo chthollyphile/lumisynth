@@ -11,45 +11,43 @@ import { addBackgroundAt } from './backgroundActions';
 import { log } from './output';
 import { insertAssetAtPlayhead } from './views/LibraryView';
 import { showQuickPick } from './workbench/QuickPick';
+import { t } from '@/i18n';
 
 /** 拖放的落点：auto = 窗口任意处；其余是具体的卡片或区域。 */
 export type DropTarget = 'auto' | 'audio' | 'lyrics' | 'translation' | 'cover' | 'library' | 'stage';
 
-const KIND_LABELS: Record<FileKind, string> = {
-    project: '工程', audio: '音频', lyrics: '歌词', image: '图片', video: '视频', font: '字体', unknown: '不认识的文件',
-};
 
 /** 已经有歌词时，再拖进来的歌词文件问一下是替换还是当译文。 */
 const askLyricsSlot = async (file: File): Promise<'lyrics' | 'translation' | undefined> => {
     if (!useProjectStore.getState().project.lyrics) return 'lyrics';
     return showQuickPick<'lyrics' | 'translation'>([
-        { label: '替换当前歌词', value: 'lyrics' },
-        { label: '作为译文', value: 'translation', description: '逐行对应到当前歌词' },
-    ], { title: `「${file.name}」`, placeholder: '已经有歌词了，这个文件用来…' });
+        { label: t('song:drop.replaceLyrics'), value: 'lyrics' },
+        { label: t('song:drop.asTranslation'), value: 'translation', description: t('song:drop.asTranslationHint') },
+    ], { title: t('song:drop.fileTitle', { name: file.name }), placeholder: t('song:drop.lyricsPlaceholder') });
 };
 
 const importToLibrary = async (file: File, place: boolean) => {
     try {
         const asset = await importLibraryFile(file);
-        log(`已加入素材库：${asset.name}`);
+        log(t('media:library.imported', { name: asset.name }));
         if (!place) return;
         // 拖到预览画面上：图片放到播放头处，视频设为播放头所在段落的背景。
         if (asset.kind === 'video') {
             addBackgroundAt({ type: 'video', assetId: asset.id, offset: 0, loop: true }, 'paragraph');
-            log(`已把「${asset.name}」设为当前段落的背景`);
+            log(t('song:drop.setAsBackground', { name: asset.name }));
         } else {
             insertAssetAtPlayhead(asset, getAgentState().program);
         }
     } catch (error) {
-        log(`导入「${file.name}」失败：${(error as Error).message}`, 'error');
+        log(t('song:drop.importFailed', { name: file.name, message: (error as Error).message }), 'error');
     }
 };
 
 const importFont = async (file: File) => {
     try {
-        log(`已添加字体：${await importFontFile(file)}`);
+        log(t('look:fonts.added', { family: await importFontFile(file) }));
     } catch (error) {
-        log(`导入字体「${file.name}」失败：${(error as Error).message}`, 'error');
+        log(t('song:drop.fontFailed', { name: file.name, message: (error as Error).message }), 'error');
     }
 };
 
@@ -63,7 +61,7 @@ export const importDroppedFiles = async (files: File[], target: DropTarget = 'au
 
     const project = byKind('project');
     if (project.length > 0) {
-        if (files.length > 1) log(`同时拖入了工程文件，只打开「${project[0].name}」，其余 ${files.length - 1} 个文件没有导入`, 'warn');
+        if (files.length > 1) log(t('song:drop.projectOnly', { name: project[0].name, count: files.length - 1 }), 'warn');
         await importProjectFile(project[0]);
         return;
     }
@@ -83,17 +81,17 @@ export const importDroppedFiles = async (files: File[], target: DropTarget = 'au
         if (slot) await importLyricsFile(file, slot);
     }
     if (audio.length > 0) {
-        if (audio.length > 1) log(`一次只能用一首歌：导入了「${audio[0].name}」，其余 ${audio.length - 1} 个音频没有导入`, 'warn');
+        if (audio.length > 1) log(t('song:drop.oneSong', { name: audio[0].name, count: audio.length - 1 }), 'warn');
         await importAudioFile(audio[0]);
     }
     for (const file of [...images, ...videos]) await importToLibrary(file, target === 'stage');
     for (const file of byKind('font')) await importFont(file);
-    byKind('unknown').forEach(file => log(`不认识「${file.name}」，没有导入（支持音频、歌词、图片、视频、字体与 .lumi 工程）`, 'warn'));
+    byKind('unknown').forEach(file => log(t('song:drop.unknown', { name: file.name }), 'warn'));
 };
 
 export const describeDroppedKinds = (files: File[]) => {
     const kinds = [...new Set(files.map(classifyFile))];
-    return kinds.map(kind => KIND_LABELS[kind]).join('、');
+    return kinds.map(kind => t(`song:fileKinds.${kind}`)).join(t('song:listSeparator'));
 };
 
 /** 拖动的是不是文件（拖页面里的元素、选中的文字不算）。 */

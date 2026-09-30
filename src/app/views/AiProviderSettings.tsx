@@ -17,15 +17,11 @@ import {
 } from '@/ai/settings';
 import { log } from '../output';
 import { Button, Field, inputClass, Section, Toggle } from '../ui';
-
-const HINTS: Record<AiProviderKind, string> = {
-    gemini: '在 Google AI Studio 创建密钥。',
-    openai: 'OpenAI、DeepSeek、OpenRouter 或本地的 Ollama / LM Studio。服务必须允许浏览器跨域访问（Ollama 需设置 OLLAMA_ORIGINS）。',
-    anthropic: '在 Anthropic Console 创建密钥。',
-};
+import { useTranslation } from 'react-i18next';
 
 export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
     const settings = useAiSettings();
+    const { t } = useTranslation('ai');
     const [status, setStatus] = useState<{ kind: 'ok' | 'error' | 'busy'; text: string } | null>(null);
     const abort = useRef<AbortController | null>(null);
     const kind = settings.provider === 'none' ? null : settings.provider;
@@ -35,11 +31,11 @@ export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
         abort.current?.abort();
         const controller = new AbortController();
         abort.current = controller;
-        setStatus({ kind: 'busy', text: '正在测试…' });
+        setStatus({ kind: 'busy', text: t('provider.testing') });
         try {
             const name = await testAiConnection(controller.signal);
-            setStatus({ kind: 'ok', text: `${name} 连接正常` });
-            log(`AI：${name} 连接正常`);
+            setStatus({ kind: 'ok', text: t('provider.ok', { name }) });
+            log(t('errorLog', { message: t('provider.ok', { name }) }));
         } catch (reason) {
             if (controller.signal.aborted) return;
             setStatus({ kind: 'error', text: (reason as Error).message });
@@ -52,9 +48,9 @@ export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
     };
 
     return (
-        <Section title="AI 提供方">
+        <Section title={t('provider.title')}>
             <select
-                aria-label="AI 提供方"
+                aria-label={t('provider.title')}
                 value={settings.provider}
                 onChange={event => {
                     setAiProvider(event.target.value as AiSettings['provider']);
@@ -62,20 +58,20 @@ export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
                 }}
                 className={inputClass}
             >
-                <option value="none">不使用 AI</option>
+                <option value="none">{t('provider.none')}</option>
                 {(Object.keys(AI_PROVIDER_LABELS) as AiProviderKind[]).map(item => (
-                    <option key={item} value={item}>{AI_PROVIDER_LABELS[item]}</option>
+                    <option key={item} value={item}>{t(`providers.${item}`)}</option>
                 ))}
             </select>
             {kind && config && (
                 <>
-                    <div className="text-[11px] text-zinc-500">{HINTS[kind]}</div>
-                    <Field label="API 密钥" hint={settings.rememberKeys ? '保存在这个浏览器里，不会进入工程文件。' : '只在本次会话有效，关掉标签页就会忘记。'}>
+                    <div className="text-[11px] text-zinc-500">{t(`provider.hints.${kind}`)}</div>
+                    <Field label={t('provider.key')} hint={settings.rememberKeys ? t('provider.keyRemembered') : t('provider.keySession')}>
                         <input
                             type="password"
                             autoComplete="off"
                             spellCheck={false}
-                            placeholder={kind === 'openai' ? '本地服务可以留空' : ''}
+                            placeholder={kind === 'openai' ? t('provider.keyOptional') : ''}
                             value={settings.keys[kind] ?? ''}
                             onChange={event => {
                                 setAiKey(kind, event.target.value);
@@ -85,7 +81,7 @@ export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
                         />
                     </Field>
                     {kind !== 'gemini' && (
-                        <Field label={kind === 'openai' ? '接口地址' : '接口地址（可选）'}>
+                        <Field label={kind === 'openai' ? t('provider.baseUrl') : t('provider.baseUrlOptional')}>
                             <input
                                 type="url"
                                 spellCheck={false}
@@ -100,7 +96,7 @@ export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
                         </Field>
                     )}
                     <div className="grid grid-cols-[1fr_5rem] gap-2">
-                        <Field label="模型">
+                        <Field label={t('provider.model')}>
                             <input
                                 spellCheck={false}
                                 placeholder={DEFAULT_MODELS[kind]}
@@ -112,13 +108,13 @@ export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
                                 className={`${inputClass} select-text`}
                             />
                         </Field>
-                        <Field label="温度">
+                        <Field label={t('provider.temperature')}>
                             <input
                                 type="number"
                                 min={0}
                                 max={2}
                                 step={0.1}
-                                placeholder="默认"
+                                placeholder={t('provider.default')}
                                 value={config.temperature ?? ''}
                                 onChange={event => {
                                     const value = Number.parseFloat(event.target.value);
@@ -129,13 +125,13 @@ export function AiProviderSettings({ onChanged }: { onChanged?: () => void }) {
                             />
                         </Field>
                     </div>
-                    <Toggle checked={settings.rememberKeys} onChange={setRememberKeys} label="在这个浏览器里记住密钥" />
+                    <Toggle checked={settings.rememberKeys} onChange={setRememberKeys} label={t('provider.remember')} />
                     <div className="flex flex-wrap gap-1.5">
                         <Button size="sm" onClick={() => void test()} disabled={status?.kind === 'busy'}>
-                            <PlugZap size={12} /> 测试连接
+                            <PlugZap size={12} /> {t('provider.test')}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { forgetAiKeys(); changed(); }}>
-                            <KeyRound size={12} /> 清除所有密钥
+                            <KeyRound size={12} /> {t('provider.forget')}
                         </Button>
                     </div>
                     {status && (

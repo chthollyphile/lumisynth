@@ -8,6 +8,7 @@ import { DEFAULT_KERNEL_TUNING } from '@/kernel/tuning';
 import type { PackId } from '@/packs/contract';
 import { findPack, listPacks } from '@/packs/registry';
 import { PROJECT_VERSION, type LumiProject } from './types';
+import { t } from '@/i18n';
 
 // folia 的内置默认主题「午夜墨染」与「日光素白」。
 export const DEFAULT_DARK_THEME: Theme = {
@@ -36,7 +37,7 @@ export const newId = () => (
         : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 );
 
-export const createProject = (name = '未命名工程'): LumiProject => {
+export const createProject = (name = t('project:untitled')): LumiProject => {
     const now = Date.now();
     return {
         version: PROJECT_VERSION,

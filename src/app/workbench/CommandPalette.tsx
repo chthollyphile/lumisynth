@@ -7,6 +7,7 @@ import type { ProjectRow } from '@/project/db';
 import { formatKeybinding, useCommands, type Command } from './commands';
 import { closeCommandPalette, setLayout, useLayout } from './layout';
 import { dropDown, overlay, popTransition, presence } from '../motion';
+import { useTranslation } from 'react-i18next';
 
 interface Item {
     key: string;
@@ -47,6 +48,7 @@ function CommandPaletteBody() {
     const [active, setActive] = useState(0);
     const input = useRef<HTMLInputElement>(null);
     const commandMode = query.startsWith('>');
+    const { t, i18n } = useTranslation('workbench');
 
     useEffect(() => {
         setActive(0);
@@ -59,7 +61,7 @@ function CommandPaletteBody() {
         const source: Item[] = commandMode
             ? [...commands.values()].map((command: Command) => ({
                 key: command.id,
-                label: command.category ? `${command.category}: ${command.title}` : command.title,
+                label: command.category ? `${command.category()}: ${command.title()}` : command.title(),
                 keybinding: command.keybinding,
                 disabled: command.enabled ? !command.enabled() : false,
                 run: () => void command.run(),
@@ -75,7 +77,8 @@ function CommandPaletteBody() {
             .filter((entry): entry is { item: Item; score: number } => entry.score !== null)
             .sort((a, b) => a.score - b.score || a.item.label.localeCompare(b.item.label))
             .map(entry => entry.item);
-    }, [commandMode, commands, projects, query]);
+        // 语言变了标题也变：i18n.language 放进依赖。
+    }, [commandMode, commands, projects, query, i18n.language]);
 
     const runItem = (item: Item | undefined) => {
         if (!item || item.disabled) return;
@@ -94,7 +97,7 @@ function CommandPaletteBody() {
                 <input
                     ref={input}
                     value={query}
-                    placeholder={commandMode ? '输入命令' : '按名称打开工程；输入 > 查找命令'}
+                    placeholder={commandMode ? t('palette.commandPlaceholder') : t('palette.projectPlaceholder')}
                     onChange={event => {
                         setLayout({ commandPaletteQuery: event.target.value });
                         setActive(0);
@@ -115,7 +118,7 @@ function CommandPaletteBody() {
                     className="h-9 w-full border-b border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none"
                 />
                 <ul className="max-h-80 overflow-y-auto py-1">
-                    {items.length === 0 && <li className="px-3 py-2 text-sm text-zinc-500">没有匹配项</li>}
+                    {items.length === 0 && <li className="px-3 py-2 text-sm text-zinc-500">{t('palette.empty')}</li>}
                     {items.map((item, index) => (
                         <li
                             key={item.key}

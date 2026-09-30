@@ -33,6 +33,8 @@ import { useThemeDraftPreview } from './theme-park/useThemeDraftPreview';
 import { setPreviewFullscreenTarget, usePreviewFullscreen } from './previewFullscreen';
 import { clock, onPausedSeek, seek, usePlayback } from './playback';
 import { log } from './output';
+import { useTranslation } from 'react-i18next';
+import { t as translate } from '@/i18n';
 
 const QUERY = new URLSearchParams(window.location.search);
 const ENGINE = QUERY.get('engine') === 'legacy' ? 'legacy' : 'kernel';
@@ -115,7 +117,7 @@ function KernelStage({ host, scale, onReady }: { host: HTMLDivElement; scale: nu
             onReady({ renderOnce: () => kernel.refresh(), rebuild: () => kernel.rebuild(), generation: Date.now() });
         }).catch(reason => {
             if (!disposed) {
-                const message = `预览创建失败：${(reason as Error).message}`;
+                const message = translate('song:preview.failed', { message: (reason as Error).message });
                 setError(message);
                 log(message, 'error');
             }
@@ -231,6 +233,7 @@ function LegacyStage({ host, onReady }: { host: HTMLDivElement; onReady: (handle
 
 /** 选中镜头时，在预览上用虚线框标出它的构图留给文字的区域（镜头运动之前的位置）。 */
 function TextRegionOverlay({ width, height, scale }: { width: number; height: number; scale: number }) {
+    const { t } = useTranslation('song');
     const selection = useSession(state => state.selection);
     const program = useProgram();
     if (selection.type !== 'shot') return null;
@@ -249,7 +252,7 @@ function TextRegionOverlay({ width, height, scale }: { width: number; height: nu
                 transform: `rotate(${region.rotation}rad)`,
             }}
         >
-            <span className="absolute -top-4 left-0 text-[10px] text-amber-300/90">文字区域</span>
+            <span className="absolute -top-4 left-0 text-[10px] text-amber-300/90">{t('preview.textRegion')}</span>
         </div>
     );
 }
@@ -276,6 +279,7 @@ const colorCentroidOf = (pixels: ArrayLike<number>, width: number, height: numbe
 
 export function Preview() {
     const program = useProgram();
+    const { t } = useTranslation('song');
     const aspect = useProjectStore(state => state.project.aspect);
     const backgroundColor = activeTheme(useThemeDraftPreview(useProjectStore(state => state.project))).backgroundColor;
     const outerRef = useRef<HTMLDivElement>(null);
@@ -581,7 +585,7 @@ export function Preview() {
             {fullscreen && <FullscreenControls container={outerRef} />}
             {drop.over && (
                 <div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-amber-400/80 bg-zinc-950/60 text-sm text-amber-200">
-                    松开：图片放到播放头处，视频设为当前段落的背景
+                    {t('preview.drop')}
                 </div>
             )}
         </div>

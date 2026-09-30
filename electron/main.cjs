@@ -13,6 +13,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, Menu, net, protocol, session, shell } = require('electron');
 const { checkForUpdates, setupUpdates } = require('./updates.cjs');
+const { tr, syncLanguageFromPage } = require('./i18n.cjs');
 
 const SCHEME = 'app';
 const HOST = 'lumisynth';
@@ -117,6 +118,11 @@ const createWindow = () => {
         }
     });
 
+    // 菜单跟着页面的界面语言：页面加载完、窗口重新获得焦点时对一次（在页面里换了语言，切回窗口后菜单就更新）。
+    const syncMenu = () => void syncLanguageFromPage(window.webContents).then(setupMenu);
+    window.webContents.on('did-finish-load', syncMenu);
+    window.on('focus', syncMenu);
+
     void window.loadURL(DEV ? DEV_URL : `${APP_ORIGIN}/`);
     return window;
 };
@@ -134,25 +140,25 @@ const setupMenu = () => {
         {
             role: 'appMenu',
             submenu: [
-                { role: 'about', label: '关于 lumisynth' },
-                { label: '检查更新…', click: () => void checkForUpdates({ manual: true }) },
+                { role: 'about', label: tr('menu.about') },
+                { label: tr('menu.checkUpdates'), click: () => void checkForUpdates({ manual: true }) },
                 { type: 'separator' },
-                { role: 'hide', label: '隐藏 lumisynth' },
-                { role: 'hideOthers', label: '隐藏其他' },
-                { role: 'unhide', label: '全部显示' },
+                { role: 'hide', label: tr('menu.hide') },
+                { role: 'hideOthers', label: tr('menu.hideOthers') },
+                { role: 'unhide', label: tr('menu.unhide') },
                 { type: 'separator' },
-                { role: 'quit', label: '退出 lumisynth' },
+                { role: 'quit', label: tr('menu.quit') },
             ],
         },
-        { role: 'editMenu', label: '编辑' },
+        { role: 'editMenu', label: tr('menu.edit') },
         {
-            label: '显示',
+            label: tr('menu.view'),
             submenu: [
-                { role: 'togglefullscreen', label: '全屏' },
-                { role: 'toggleDevTools', label: '开发者工具' },
+                { role: 'togglefullscreen', label: tr('menu.fullscreen') },
+                { role: 'toggleDevTools', label: tr('menu.devTools') },
             ],
         },
-        { role: 'windowMenu', label: '窗口' },
+        { role: 'windowMenu', label: tr('menu.window') },
     ]));
 };
 

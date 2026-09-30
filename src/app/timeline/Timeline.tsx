@@ -5,7 +5,9 @@ import { resolveBackgroundClips, type ResolvedBackgroundClip } from '@/core/asse
 import { backgroundMenu, describeBackground } from '../backgroundActions';
 import { resolveAssetClips, type ResolvedAssetClip } from '@/core/assets/clips';
 import { updateAssetClip, updateBackgroundClip } from '@/project/assets';
-import { clipMenu, SLOT_LABELS, TIMING_LABELS } from '../clipActions';
+import { clipMenu, slotLabel, timingLabel } from '../clipActions';
+import { useTranslation } from 'react-i18next';
+import { packShortLabel, paragraphKindLabel } from '@/i18n/catalog';
 import { moveParagraphStart } from '@/project/structure';
 import { log } from '../output';
 import { useCoarsePointer } from '../mobile/uiMode';
@@ -22,7 +24,7 @@ import { drawWaveform, prepareCanvas } from '../waveform';
 import { setSession, useSession, type Selection } from '@/project/session';
 import { useProjectStore } from '@/project/store';
 import { useProgram } from '../DerivedProvider';
-import { packColor, packShortLabel } from '../StylePanel';
+import { packColor } from '../StylePanel';
 import { clock, seek, usePlayback } from '../playback';
 import { useProjectDuration } from '../Transport';
 import { cx, rangeFill } from '../ui';
@@ -42,9 +44,6 @@ const packBlockStyle = (pack: PackId, selected: boolean): React.CSSProperties =>
         borderColor: selected ? `color-mix(in srgb, ${color} 35%, white)` : `color-mix(in srgb, ${color} 45%, #18181b)`,
         color: selected ? '#fafafa' : '#e4e4e7',
     };
-};
-const KIND_LABELS: Record<string, string> = {
-    breath: '换气', verse: '主歌', lift: '上扬', chorus: '副歌', break: '间奏', outro: '尾声',
 };
 
 const isInterlude = (line: Line) => line.fullText === '......';
@@ -71,13 +70,14 @@ function Waveform({ zoom, scrollLeft, viewport, height }: { zoom: number; scroll
         drawWaveform(context, analysis, viewport, height, x => (scrollLeft + x) / zoom);
     }, [analysis, zoom, scrollLeft, viewport, height]);
     const hasAudio = useProjectStore(state => state.project.audio !== null);
+    const { t } = useTranslation('arrange');
     return (
         <>
             <canvas ref={canvasRef} className="pointer-events-none absolute top-0" style={{ left: scrollLeft, width: viewport, height }} />
             {!hasAudio && (
                 // 没有音频时这一行是空的：告诉用户这里会出现什么、怎么放进来。
                 <div className="pointer-events-none sticky left-0 flex h-full items-center px-3 text-[11px] text-zinc-600" style={{ width: viewport }}>
-                    还没有音频 · 把歌曲拖进窗口或在「素材」里选择，这里会显示波形
+                    {t('timeline.noAudio')}
                 </div>
             )}
         </>
@@ -112,6 +112,7 @@ export function Timeline() {
     const follow = useLayout(state => state.timelineFollow);
     const wordMode = useLayout(state => state.timelineWords);
     const selection = useSession(state => state.selection);
+    const { t } = useTranslation('arrange');
     const offset = useProjectStore(state => state.project.lyricEdits.offset);
     const duration = useProjectDuration();
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -500,38 +501,38 @@ export function Timeline() {
     return (
         <div className="flex h-full flex-col">
             <div className="flex h-8 shrink-0 items-center gap-2 border-b border-zinc-800 px-2 text-xs text-zinc-400">
-                <button type="button" className="rounded p-1 hover:bg-zinc-800" aria-label="缩小" onClick={() => zoomAroundPlayhead(zoom / 1.3)}><Minus size={13} /></button>
+                <button type="button" className="rounded p-1 hover:bg-zinc-800" aria-label={t('timeline.zoomOut')} onClick={() => zoomAroundPlayhead(zoom / 1.3)}><Minus size={13} /></button>
                 <input
                     type="range" min={4} max={400} step={1} value={zoom}
                     onChange={event => zoomAroundPlayhead(Number(event.target.value))}
-                    style={rangeFill(zoom, 4, 400)} className="w-28" aria-label="缩放"
+                    style={rangeFill(zoom, 4, 400)} className="w-28" aria-label={t('timeline.zoom')}
                 />
-                <button type="button" className="rounded p-1 hover:bg-zinc-800" aria-label="放大" onClick={() => zoomAroundPlayhead(zoom * 1.3)}><Plus size={13} /></button>
+                <button type="button" className="rounded p-1 hover:bg-zinc-800" aria-label={t('timeline.zoomIn')} onClick={() => zoomAroundPlayhead(zoom * 1.3)}><Plus size={13} /></button>
                 <button
                     type="button"
                     onClick={() => setLayout({ timelineFollow: !follow })}
                     className={cx('flex items-center gap-1 rounded px-1.5 py-0.5', follow ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-800')}
-                    title="播放时跟随播放头"
+                    title={t('timeline.followHint')}
                 >
-                    <Magnet size={12} /> 跟随
+                    <Magnet size={12} /> {t('timeline.follow')}
                 </button>
                 <button
                     type="button"
                     aria-pressed={wordMode}
                     onClick={() => setLayout({ timelineWords: !wordMode })}
                     className={cx('rounded px-1.5 py-0.5', wordMode ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-800')}
-                    title="歌词轨显示每个字的时间（可以直接拖）"
+                    title={t('timeline.wordsHint')}
                 >
-                    逐字
+                    {t('timeline.words')}
                 </button>
                 {wordMode && zoom < MIN_WORD_ZOOM && (
                     <button type="button" className="shrink-0 rounded px-1.5 py-0.5 text-amber-300 hover:bg-zinc-800" onClick={() => setLayout({ timelineZoom: MIN_WORD_ZOOM * 2 })}>
-                        放大后显示逐字
+                        {t('timeline.zoomForWords')}
                     </button>
                 )}
                 <div className="mx-1 h-4 w-px bg-zinc-800" />
-                <label className="flex shrink-0 items-center gap-1 whitespace-nowrap" title="歌词整体偏移（秒）；正值为推迟">
-                    歌词偏移
+                <label className="flex shrink-0 items-center gap-1 whitespace-nowrap" title={t('timeline.offsetHint')}>
+                    {t('timeline.offset')}
                     <input
                         type="number" step={0.01} value={offset}
                         onChange={event => setLyricOffset(Number(event.target.value) || 0)}
@@ -540,7 +541,7 @@ export function Timeline() {
                     s
                 </label>
                 <div className="flex-1" />
-                <span className="truncate whitespace-nowrap text-zinc-500 pointer-coarse:hidden">拖刻度栏或播放头定位 · 拖空白处平移 · 滚轮平移 · Ctrl+滚轮缩放 · Alt+滚轮微调 · 拖歌词块中间整行移动、拖两端改时间</span>
+                <span className="truncate whitespace-nowrap text-zinc-500 pointer-coarse:hidden">{t('timeline.hint')}</span>
             </div>
             <div
                 ref={scrollRef}
@@ -550,18 +551,18 @@ export function Timeline() {
                 onScroll={event => setScrollLeft((event.target as HTMLDivElement).scrollLeft)}
             >
                 <div className="relative" style={{ width: contentWidth + LABEL_WIDTH }}>
-                    <Track label="时间" height={22} onBackgroundPointerDown={scrubFromPointer}>
+                    <Track label={t('timeline.tracks.time')} height={22} onBackgroundPointerDown={scrubFromPointer}>
                         {ticks.map(t => (
                             <div key={t} className="pointer-events-none absolute top-0 h-full border-l border-zinc-700/70 pl-1 text-[10px] text-zinc-500 tabular-nums" style={{ left: t * zoom }}>
                                 {formatRuler(t)}
                             </div>
                         ))}
                     </Track>
-                    <Track label="音频" height={44} onBackgroundPointerDown={panOrSeek}>
+                    <Track label={t('timeline.tracks.audio')} height={44} onBackgroundPointerDown={panOrSeek}>
                         <Waveform zoom={zoom} scrollLeft={scrollLeft} viewport={viewport} height={44} />
                     </Track>
                     {backgroundClips.length > 0 && (
-                        <Track label="背景" height={coarse ? 40 : 24} onBackgroundPointerDown={panOrSeek}>
+                        <Track label={t('timeline.tracks.background')} height={coarse ? 40 : 24} onBackgroundPointerDown={panOrSeek}>
                             {resolvedBackgrounds.map((clip, index) => {
                                 const selected = selection.type === 'background' && selection.clipId === clip.id;
                                 return (
@@ -590,7 +591,7 @@ export function Timeline() {
                             })}
                         </Track>
                     )}
-                    <Track label="歌词" height={wordMode && zoom >= MIN_WORD_ZOOM ? (coarse ? 48 : 38) : coarse ? 40 : 30} onBackgroundPointerDown={panOrSeek}>
+                    <Track label={t('timeline.tracks.lyrics')} height={wordMode && zoom >= MIN_WORD_ZOOM ? (coarse ? 48 : 38) : coarse ? 40 : 30} onBackgroundPointerDown={panOrSeek}>
                         {wordMode && zoom >= MIN_WORD_ZOOM && (
                             <TimelineWords lines={lines} zoom={zoom} scrollLeft={scrollLeft} viewport={viewport} duration={duration} timeAt={timeAt} isInterlude={isInterlude} />
                         )}
@@ -625,7 +626,7 @@ export function Timeline() {
                             </div>
                         ))}
                     </Track>
-                    <Track label="段落" height={coarse ? 40 : 28} onBackgroundPointerDown={panOrSeek}>
+                    <Track label={t('timeline.tracks.paragraphs')} height={coarse ? 40 : 28} onBackgroundPointerDown={panOrSeek}>
                         {program.paragraphs.map((paragraph: LumiParagraph) => (
                             <div key={paragraph.id}>
                                 <div
@@ -645,15 +646,15 @@ export function Timeline() {
                                         ...block(paragraph.startTime, paragraph.transitionOut?.startTime ?? paragraph.endTime),
                                         ...packBlockStyle(paragraph.direction.pack, isSelected(selection, 'paragraph', paragraph.id)),
                                     }}
-                                    title={`${KIND_LABELS[paragraph.kind]} · ${paragraph.direction.pack}${paragraph.direction.source !== 'auto' ? `（${paragraph.direction.source === 'ai' ? 'AI' : '手动'}）` : ''}`}
+                                    title={`${paragraphKindLabel(paragraph.kind)} · ${paragraph.direction.pack}${paragraph.direction.source === 'ai' ? t('timeline.sourceAi') : paragraph.direction.source !== 'auto' ? t('timeline.sourceManual') : ''}`}
                                 >
-                                    {KIND_LABELS[paragraph.kind]} · {packShortLabel(paragraph.direction.pack)}
+                                    {paragraphKindLabel(paragraph.kind)} · {packShortLabel(paragraph.direction.pack)}
                                 </div>
                                 {paragraph.index > 0 && (
                                     <div
                                         role="separator"
-                                        aria-label={`第 ${paragraph.index + 1} 段的开头`}
-                                        title="拖动改变段落边界（吸附到行首）"
+                                        aria-label={t('timeline.paragraphStart', { n: paragraph.index + 1 })}
+                                        title={t('timeline.paragraphStartHint')}
                                         onPointerDown={event => dragParagraphStart(event, paragraph)}
                                         className="absolute top-0 bottom-0 z-10 w-2 -translate-x-1 cursor-col-resize hover:bg-amber-300/60"
                                         style={{ left: paragraph.startTime * zoom }}
@@ -670,14 +671,14 @@ export function Timeline() {
                                             paragraph.transitionOut.source === 'user' ? 'border-fuchsia-300 bg-fuchsia-400/30' : 'border-zinc-400 bg-[repeating-linear-gradient(135deg,rgba(212,212,216,0.35)_0_3px,transparent_3px_6px)]',
                                         )}
                                         style={block(paragraph.transitionOut.startTime, paragraph.transitionOut.endTime)}
-                                        title={`转场：${getTransition(paragraph.transitionOut.id)?.label ?? paragraph.transitionOut.id}`}
+                                        title={t('timeline.transition', { name: getTransition(paragraph.transitionOut.id)?.label ?? paragraph.transitionOut.id })}
                                     />
                                 )}
                             </div>
                         ))}
                     </Track>
                     {(assetClips.length > 0 || libraryAssets.length > 0) && (
-                        <Track label="素材" height={coarse ? 40 : 26} onBackgroundPointerDown={panOrSeek}>
+                        <Track label={t('timeline.tracks.clips')} height={coarse ? 40 : 26} onBackgroundPointerDown={panOrSeek}>
                             {resolvedClips.map(clip => {
                                 const asset = libraryAssets.find(item => item.id === clip.assetId);
                                 const selected = selection.type === 'clip' && selection.clipId === clip.id;
@@ -691,7 +692,9 @@ export function Timeline() {
                                             setSession({ selection: { type: 'clip', clipId: clip.id } });
                                             showContextMenu(event, clipMenu(clip));
                                         }}
-                                        title={`${asset?.name ?? clip.assetId}（${SLOT_LABELS[clip.slot]}${clip.timing.type === 'absolute' ? '' : '，跟随' + TIMING_LABELS[clip.timing.type]}）`}
+                                        title={clip.timing.type === 'absolute'
+                                            ? t('timeline.clip', { name: asset?.name ?? clip.assetId, slot: slotLabel(clip.slot) })
+                                            : t('timeline.clipFollowing', { name: asset?.name ?? clip.assetId, slot: slotLabel(clip.slot), timing: timingLabel(clip.timing.type) })}
                                         className={cx(
                                             'absolute top-1 bottom-1 flex cursor-grab items-center gap-1 overflow-hidden rounded-sm border px-1 text-[10px] whitespace-nowrap',
                                             selected ? 'border-emerald-200 bg-emerald-500/50 text-white' : 'border-emerald-700 bg-emerald-600/30 text-emerald-100',
@@ -707,7 +710,7 @@ export function Timeline() {
                             })}
                         </Track>
                     )}
-                    <Track label="镜头" height={coarse ? 44 : 28} onBackgroundPointerDown={panOrSeek}>
+                    <Track label={t('timeline.tracks.shots')} height={coarse ? 44 : 28} onBackgroundPointerDown={panOrSeek}>
                         {program.paragraphs.flatMap(paragraph => paragraph.shots.map((shot: LumiShot) => (
                             <div
                                 key={shot.id}
@@ -725,7 +728,7 @@ export function Timeline() {
                                     shot.isBridge && 'opacity-60',
                                 )}
                                 style={{ ...block(shot.startTime, shot.endTime), ...packBlockStyle(shot.pack, isSelected(selection, 'shot', shot.id)) }}
-                                title={`${shot.style}${shot.locked ? '（已锁定）' : ''}`}
+                                title={shot.locked ? t('timeline.shotLocked', { style: shot.style }) : shot.style}
                             >
                                 {shot.locked && <Lock size={9} className="shrink-0" />}
                                 {getStyle(shot.style)?.kind ?? shot.style}
@@ -744,7 +747,7 @@ export function Timeline() {
                         <div
                             onPointerDown={scrubFromPointer}
                             className="pointer-events-auto absolute -top-px -left-[6px] h-3.5 w-[13px] cursor-ew-resize bg-amber-400 [clip-path:polygon(0_0,100%_0,100%_60%,50%_100%,0_60%)]"
-                            title="拖动播放头"
+                            title={t('timeline.dragPlayhead')}
                         />
                     </div>
                 </div>

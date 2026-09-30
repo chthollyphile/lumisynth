@@ -21,12 +21,8 @@ import { seek, usePlayback } from './playback';
 import { revealInTimeline } from './timeline/reveal';
 import type { ContextMenuItem } from './workbench/ContextMenu';
 import { showQuickPick, type QuickPickItem } from './workbench/QuickPick';
-
-export const PARAGRAPH_KIND_LABELS: Record<string, string> = {
-    breath: '换气', verse: '主歌', lift: '上扬', chorus: '副歌', break: '间奏', outro: '尾声',
-};
-
-const packShort = (id: string) => findPack(id)?.shortLabel ?? id;
+import { t } from '@/i18n';
+import { packDescription, packLabel, packShortLabel, paragraphKindLabel } from '@/i18n/catalog';
 
 // ---------------------------------------------------------------------------------------------
 // 选择
@@ -74,7 +70,7 @@ export const usePlayheadLocation = (program: LumiProgram) => {
 };
 
 export const shotText = (program: LumiProgram, shot: LumiShot) => (
-    shot.isBridge ? '（间奏）' : shot.lineIndices.map(index => program.lines[index]?.line.fullText).filter(Boolean).join(' / ')
+    shot.isBridge ? t('arrange:bridge') : shot.lineIndices.map(index => program.lines[index]?.line.fullText).filter(Boolean).join(' / ')
 );
 
 // ---------------------------------------------------------------------------------------------
@@ -85,15 +81,15 @@ export const pickShotStyle = async (shot: LumiShot) => {
     const packs = project.direction.shotMixing ? listPacks() : listPacks().filter(pack => pack.id === shot.pack);
     const items: QuickPickItem<string>[] = packs.flatMap(pack => pack.styles.map(style => ({
         label: style.kind,
-        description: `${packs.length > 1 ? `${pack.shortLabel} · ` : ''}${familyLabel(pack.id, style.family)} · ${style.mood}`,
+        description: `${packs.length > 1 ? `${packShortLabel(pack.id)} · ` : ''}${familyLabel(pack.id, style.family)} · ${style.mood}`,
         value: style.id,
         thumbnail: style.id,
         picked: style.id === shot.style,
     })));
     bringShotIntoView(shot);
     const chosen = await showQuickPick(items, {
-        title: `更换镜头风格（当前：${shot.style}）`,
-        placeholder: '输入以过滤；上下键在预览里试看，回车替换',
+        title: t('arrange:pick.shotStyle', { current: shot.style }),
+        placeholder: t('arrange:pick.shotStylePlaceholder'),
         onActive: style => setPeek([{ id: 'peek-style', type: 'shot-style', anchor: shot.anchor, style }]),
     });
     setPeek(null, 0);
@@ -107,15 +103,15 @@ export const pickShotComponent = async (shot: LumiShot, slotId: string) => {
     const kind = getStyle(shot.style)?.kind ?? '';
     const current = shot.components[slotId];
     const items: QuickPickItem<string>[] = [
-        { label: '自动', description: '交回自动规则', value: 'auto', picked: !shot.lockedComponents.includes(slotId) },
-        ...slot.options.map(option => ({ label: option.label, description: pack!.shortLabel, value: option.id, picked: shot.lockedComponents.includes(slotId) && option.id === current })),
+        { label: t('arrange:pick.auto'), description: t('arrange:pick.autoRules'), value: 'auto', picked: !shot.lockedComponents.includes(slotId) },
+        ...slot.options.map(option => ({ label: option.label, description: packShortLabel(pack!.id), value: option.id, picked: shot.lockedComponents.includes(slotId) && option.id === current })),
         ...(slotId === 'typography' && !shot.isBridge
-            ? borrowableTypographies(shot.pack, kind).map(option => ({ label: option.label, description: '借用其他包', value: option.value, picked: option.value === current }))
+            ? borrowableTypographies(shot.pack, kind).map(option => ({ label: option.label, description: t('arrange:pick.borrowed'), value: option.value, picked: option.value === current }))
             : []),
     ];
     bringShotIntoView(shot);
     const chosen = await showQuickPick(items, {
-        title: `镜头的${slot.label}`,
+        title: t('arrange:pick.shotComponent', { slot: slot.label }),
         onActive: value => setPeek(value === 'auto' ? [] : [{ id: 'peek-component', type: 'shot-component', anchor: shot.anchor, slot: slotId, value }]),
     });
     setPeek(null, 0);
@@ -124,34 +120,34 @@ export const pickShotComponent = async (shot: LumiShot, slotId: string) => {
 
 export const pickParagraphPack = async (paragraph: LumiParagraph) => {
     const items: QuickPickItem<string>[] = [
-        { label: '自动', description: '按编排设置', value: 'auto', picked: paragraph.direction.source === 'auto' },
-        ...listPacks().map(pack => ({ label: pack.label, description: pack.description.slice(0, 40), value: pack.id, picked: paragraph.direction.source !== 'auto' && paragraph.direction.pack === pack.id })),
+        { label: t('arrange:pick.auto'), description: t('arrange:pick.autoDirection'), value: 'auto', picked: paragraph.direction.source === 'auto' },
+        ...listPacks().map(pack => ({ label: packLabel(pack.id), description: packDescription(pack.id).slice(0, 40), value: pack.id, picked: paragraph.direction.source !== 'auto' && paragraph.direction.pack === pack.id })),
     ];
-    const chosen = await showQuickPick(items, { title: `第 ${paragraph.index + 1} 段（${PARAGRAPH_KIND_LABELS[paragraph.kind]}）由哪个包来画` });
+    const chosen = await showQuickPick(items, { title: t('arrange:pick.paragraphPack', { n: paragraph.index + 1, kind: paragraphKindLabel(paragraph.kind) }) });
     if (chosen) setParagraphDirection(paragraph, { pack: chosen });
 };
 
 export const pickParagraphTransition = async (paragraph: LumiParagraph) => {
     const currentId = paragraph.transitionOut?.id ?? 'none';
     const items: QuickPickItem<string>[] = [
-        { label: '自动', value: 'auto' },
-        { label: '无转场', value: 'none', picked: currentId === 'none' },
+        { label: t('arrange:pick.auto'), value: 'auto' },
+        { label: t('arrange:pick.noTransition'), value: 'none', picked: currentId === 'none' },
         ...listPacks().flatMap(pack => pack.transitions.map(transition => ({
             label: transition.label,
-            description: pack.shortLabel,
+            description: packShortLabel(pack.id),
             value: transition.id,
             picked: transition.id === currentId,
         }))),
     ];
-    const chosen = await showQuickPick(items, { title: `第 ${paragraph.index + 1} 段的出场转场` });
+    const chosen = await showQuickPick(items, { title: t('arrange:pick.paragraphTransition', { n: paragraph.index + 1 }) });
     if (chosen) setParagraphTransition(paragraph, chosen);
 };
 
 export const pickParagraphKind = async (paragraph: LumiParagraph) => {
     const chosen = await showQuickPick<string>([
-        { label: '自动判断', description: '按歌词标记、时长与字数', value: 'auto', picked: !paragraph.kindManual },
-        ...PARAGRAPH_KINDS.map(kind => ({ label: PARAGRAPH_KIND_LABELS[kind], description: kind, value: kind, picked: paragraph.kindManual && paragraph.kind === kind })),
-    ], { title: `第 ${paragraph.index + 1} 段的性质（影响按段落混用时用哪个包、镜头的能量）` });
+        { label: t('arrange:pick.autoKind'), description: t('arrange:pick.autoKindHint'), value: 'auto', picked: !paragraph.kindManual },
+        ...PARAGRAPH_KINDS.map(kind => ({ label: paragraphKindLabel(kind), description: kind, value: kind, picked: paragraph.kindManual && paragraph.kind === kind })),
+    ], { title: t('arrange:pick.paragraphKind', { n: paragraph.index + 1 }) });
     if (chosen) setParagraphKind(paragraph, chosen as never, message => log(message));
 };
 
@@ -164,13 +160,13 @@ const hasManualStructure = (paragraph: LumiParagraph) => {
 /** 分段相关的菜单项：在某一行开新段（lineIndex 给出时）、与上一段合并、性质、交回自动分段。 */
 export const structureMenuItems = (program: LumiProgram, paragraph: LumiParagraph, lineIndex?: number): ContextMenuItem[] => [
     ...(lineIndex !== undefined ? [{
-        label: `在第 ${lineIndex + 1} 行开新段`,
+        label: t('arrange:menu.splitAtLine', { n: lineIndex + 1 }),
         run: () => splitParagraphAt(program, lineIndex, message => log(message)),
         disabled: paragraph.lineIndices[0] === lineIndex,
     }] : []),
-    { label: '与上一段合并', run: () => mergeWithPrevious(program, paragraph, message => log(message)), disabled: paragraph.index === 0 },
-    { label: `性质…（当前：${PARAGRAPH_KIND_LABELS[paragraph.kind]}${paragraph.kindManual ? '，手动' : ''}）`, run: () => pickParagraphKind(paragraph) },
-    { label: '恢复自动分段', run: () => resetParagraphStructure(program, paragraph, message => log(message)), disabled: !hasManualStructure(paragraph) },
+    { label: t('arrange:menu.mergePrevious'), run: () => mergeWithPrevious(program, paragraph, message => log(message)), disabled: paragraph.index === 0 },
+    { label: paragraph.kindManual ? t('arrange:menu.kindManual', { kind: paragraphKindLabel(paragraph.kind) }) : t('arrange:menu.kind', { kind: paragraphKindLabel(paragraph.kind) }), run: () => pickParagraphKind(paragraph) },
+    { label: t('arrange:menu.resetStructure'), run: () => resetParagraphStructure(program, paragraph, message => log(message)), disabled: !hasManualStructure(paragraph) },
 ];
 
 /** 把这一段的编排覆盖（包、energy、族）复制到同一性质的所有段落。 */
@@ -182,7 +178,7 @@ export const copyDirectionToSameKind = (program: LumiProgram, paragraph: LumiPar
         ? { pack: 'auto' as const, energy: 'auto' as const, families: 'auto' as const }
         : { pack, energy, families };
     updateProject(project => targets.reduce((next, target) => patchParagraphDirection(next, target.anchor, patch), project));
-    log(`已把第 ${paragraph.index + 1} 段的编排复制到 ${targets.length} 个${PARAGRAPH_KIND_LABELS[paragraph.kind]}段落`);
+    log(t('arrange:copiedDirection', { n: paragraph.index + 1, count: targets.length, kind: paragraphKindLabel(paragraph.kind) }));
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -191,31 +187,31 @@ export const copyDirectionToSameKind = (program: LumiProgram, paragraph: LumiPar
 export const shotMenu = (program: LumiProgram, paragraph: LumiParagraph, shot: LumiShot): ContextMenuItem[] => {
     const slots = findPack(shot.pack)?.componentSlots ?? [];
     return [
-        { label: '更换风格…', run: () => pickShotStyle(shot) },
+        { label: t('arrange:menu.changeStyle'), run: () => pickShotStyle(shot) },
         ...slots.map(slot => ({ label: `${slot.label}…`, run: () => pickShotComponent(shot, slot.id), disabled: shot.isBridge && slot.id === 'typography' })),
         'separator',
         shot.locked
-            ? { label: '解除风格锁定', run: () => unlockShotStyle(shot) }
-            : { label: '锁定当前风格', run: () => lockCurrentStyle(shot) },
-        { label: '清除这个镜头的组件替换', run: () => slots.forEach(slot => setShotComponent(shot, slot.id, 'auto')), disabled: shot.lockedComponents.length === 0 },
+            ? { label: t('arrange:menu.unlockStyle'), run: () => unlockShotStyle(shot) }
+            : { label: t('arrange:menu.lockStyle'), run: () => lockCurrentStyle(shot) },
+        { label: t('arrange:menu.clearComponents'), run: () => slots.forEach(slot => setShotComponent(shot, slot.id, 'auto')), disabled: shot.lockedComponents.length === 0 },
         'separator',
         ...(shot.lineIndices.length > 0 && shot.lineIndices[0] >= 0 && paragraph.lineIndices.includes(shot.lineIndices[0]) && paragraph.lineIndices[0] !== shot.lineIndices[0]
-            ? [{ label: `从这个镜头的第 ${shot.lineIndices[0] + 1} 行开新段`, run: () => splitParagraphAt(program, shot.lineIndices[0], message => log(message)) }]
+            ? [{ label: t('arrange:menu.splitAtShot', { n: shot.lineIndices[0] + 1 }), run: () => splitParagraphAt(program, shot.lineIndices[0], message => log(message)) }]
             : []),
-        { label: '跳到这里', run: () => selectShot(paragraph, shot) },
-        { label: '所在段落', run: () => selectParagraph(paragraph) },
-        ...paragraphMenu(program, paragraph).filter(item => item !== 'separator' && item.label !== '跳到这里').slice(0, 2),
+        { label: t('arrange:menu.jumpHere'), run: () => selectShot(paragraph, shot) },
+        { label: t('arrange:menu.paragraph'), run: () => selectParagraph(paragraph) },
+        ...paragraphMenu(program, paragraph).filter(item => item !== 'separator' && item.label !== t('arrange:menu.jumpHere')).slice(0, 2),
     ];
 };
 
 export const paragraphMenu = (program: LumiProgram, paragraph: LumiParagraph): ContextMenuItem[] => [
-    { label: `由哪个包来画…（当前：${packShort(paragraph.direction.pack)}）`, run: () => pickParagraphPack(paragraph) },
-    { label: '出场转场…', run: () => pickParagraphTransition(paragraph), disabled: paragraph.index === program.paragraphs.length - 1 },
+    { label: t('arrange:menu.pack', { pack: packShortLabel(paragraph.direction.pack) }), run: () => pickParagraphPack(paragraph) },
+    { label: t('arrange:menu.transition'), run: () => pickParagraphTransition(paragraph), disabled: paragraph.index === program.paragraphs.length - 1 },
     'separator',
     ...structureMenuItems(program, paragraph),
     'separator',
-    { label: `把编排复制到所有${PARAGRAPH_KIND_LABELS[paragraph.kind]}段落`, run: () => copyDirectionToSameKind(program, paragraph) },
-    { label: '交回自动编排', run: () => setParagraphDirection(paragraph, { pack: 'auto', energy: 'auto', families: 'auto' }), disabled: paragraph.direction.source === 'auto' },
+    { label: t('arrange:menu.copyToKind', { kind: paragraphKindLabel(paragraph.kind) }), run: () => copyDirectionToSameKind(program, paragraph) },
+    { label: t('arrange:menu.resetDirection'), run: () => setParagraphDirection(paragraph, { pack: 'auto', energy: 'auto', families: 'auto' }), disabled: paragraph.direction.source === 'auto' },
     'separator',
-    { label: '跳到这里', run: () => selectParagraph(paragraph) },
+    { label: t('arrange:menu.jumpHere'), run: () => selectParagraph(paragraph) },
 ];

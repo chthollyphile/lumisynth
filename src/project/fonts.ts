@@ -5,6 +5,7 @@ import { newId } from './defaults';
 import { getAssetBlob, putAsset } from './db';
 import { updateProject } from './store';
 import type { ProjectTypography } from './typography';
+import { t } from '@/i18n';
 
 const registered = new Map<string, FontFace>();
 
@@ -37,7 +38,7 @@ export const FONT_FILE_ACCEPT = '.ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/w
 
 /** 上传一个字体文件：注册、存进工程，并放到歌词字体族的最前面。返回字体族名。 */
 export const importFontFile = async (file: File): Promise<string> => {
-    const base = file.name.replace(/\.(ttf|otf|woff2?)$/i, '').trim() || '上传的字体';
+    const base = file.name.replace(/\.(ttf|otf|woff2?)$/i, '').trim() || t('project:fonts.uploaded');
     // 用独立的名字注册，免得和系统里同名的字体（字重不全的那份）混在一起。
     const family = `${base} (lumisynth-${newId().slice(0, 4)})`;
     const buffer = await file.arrayBuffer();
@@ -47,7 +48,7 @@ export const importFontFile = async (file: File): Promise<string> => {
             face = new FontFace(family, buffer);
             await face.load();
         } catch {
-            throw new Error(`读不了这个字体文件：${file.name}`);
+            throw new Error(t('project:fonts.unreadable', { name: file.name }));
         }
     }
     const asset = await putAsset(file, file.name);
@@ -89,7 +90,7 @@ export const supportsLocalFonts = () => typeof window !== 'undefined'
 /** 列出本机字体族（去重、排序）。浏览器会先询问用户是否允许。 */
 export const listLocalFontFamilies = async (): Promise<string[]> => {
     const query = (window as Window & { queryLocalFonts?: () => Promise<LocalFontData[]> }).queryLocalFonts;
-    if (!query) throw new Error('这个浏览器不能列出本机字体，请直接输入字体名。');
+    if (!query) throw new Error(t('project:fonts.noLocalFonts'));
     const fonts = await query();
     return [...new Set(fonts.map(font => font.family))].sort((a, b) => a.localeCompare(b));
 };

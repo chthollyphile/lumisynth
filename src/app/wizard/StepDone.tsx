@@ -6,7 +6,9 @@ import { useProjectStore } from '@/project/store';
 import { useEffectiveLyrics, useProgram } from '../DerivedProvider';
 import { openExportDialog } from '../export/ExportDialog';
 import { play, seek } from '../playback';
-import { packLabel } from '../StylePanel';
+import { packLabel } from '@/i18n/catalog';
+import { useTranslation } from 'react-i18next';
+import { hasModeSuffix } from './themeNames';
 import { formatTime, useProjectDuration } from '../Transport';
 import { Button } from '../ui';
 import { useAutoClipCount } from '../autoArrange/autoArrangeActions';
@@ -29,21 +31,23 @@ export function StepDone() {
     const duration = useProjectDuration();
     const lineCount = effective.data?.lines.filter(line => line.fullText !== '......').length ?? 0;
     const theme = project.theme.dual[project.theme.variant];
-    const style = project.direction.mode === 'mix' ? '按段落混用' : packLabel(project.direction.pack);
+    const { t } = useTranslation(['wizard', 'arrange', 'theme', 'workbench']);
+    const style = project.direction.mode === 'mix' ? t('workbench:status.mix') : packLabel(project.direction.pack);
     const imageCount = project.assets.filter(asset => asset.kind === 'image').length;
     const autoCount = useAutoClipCount();
+    const shotCount = program.paragraphs.reduce((sum, p) => sum + p.shots.length, 0);
 
     return (
         <div className="space-y-5">
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3">
-                <Row label="歌曲" value={[project.meta.title || '（未命名）', project.meta.artist].filter(Boolean).join(' · ')} />
-                <Row label="音频" value={audioBuffer ? formatTime(audioBuffer.duration) : project.audio ? '解码中…' : '没有（按歌词时长预览）'} />
-                <Row label="歌词" value={lineCount > 0 ? `${lineCount} 行 · ${program.paragraphs.length} 段 · ${program.paragraphs.reduce((sum, p) => sum + p.shots.length, 0)} 个镜头` : '纯音乐'} />
-                <Row label="风格" value={style} />
-                <Row label="画幅" value={project.aspect} />
-                <Row label="素材" value={imageCount === 0 ? '没有' : autoCount > 0 ? `${imageCount} 张图 · 放进了 ${autoCount} 个镜头` : `${imageCount} 张图（没有自动编排）`} />
-                <Row label="配色" value={/[深浅]色/.test(theme.name) ? theme.name : `${theme.name}（${project.theme.variant === 'dark' ? '深色' : '浅色'}）`} />
-                <Row label="时长" value={formatTime(duration)} />
+                <Row label={t('done.song')} value={[project.meta.title || t('done.untitled'), project.meta.artist].filter(Boolean).join(' · ')} />
+                <Row label={t('done.audio')} value={audioBuffer ? formatTime(audioBuffer.duration) : project.audio ? t('done.decoding') : t('done.noAudio')} />
+                <Row label={t('done.lyrics')} value={lineCount > 0 ? [t('arrange:storyboard.lineCount', { count: lineCount }), t('arrange:storyboard.paragraphCount', { count: program.paragraphs.length }), t('arrange:storyboard.shotCount', { count: shotCount })].join(' · ') : t('workbench:status.instrumental')} />
+                <Row label={t('done.style')} value={style} />
+                <Row label={t('done.aspect')} value={project.aspect} />
+                <Row label={t('done.images')} value={imageCount === 0 ? t('done.none') : autoCount > 0 ? t('done.imagesPlaced', { images: t('done.imageCount', { count: imageCount }), count: autoCount }) : t('done.imagesNotPlaced', { images: t('done.imageCount', { count: imageCount }) })} />
+                <Row label={t('done.colors')} value={hasModeSuffix(theme.name) ? theme.name : t('done.colorsValue', { name: theme.name, mode: t(`theme:modes.${project.theme.variant}`) })} />
+                <Row label={t('done.duration')} value={formatTime(duration)} />
             </div>
 
             <div className="space-y-2">
@@ -56,20 +60,20 @@ export function StepDone() {
                         play();
                     }}
                 >
-                    <Play size={14} /> 从头播放预览
+                    <Play size={14} /> {t('done.play')}
                 </Button>
                 <Button className="w-full" onClick={() => { closeWizard(); openExportDialog(); }}>
-                    <Download size={14} /> 导出视频…
+                    <Download size={14} /> {t('done.export')}
                 </Button>
                 <Button variant="ghost" className="w-full" onClick={closeWizard}>
-                    <SlidersHorizontal size={14} /> 继续精修
+                    <SlidersHorizontal size={14} /> {t('done.refine')}
                 </Button>
             </div>
 
             <ul className="space-y-1.5 text-[11px] leading-relaxed text-zinc-500">
-                <li>· 时间轴上右键段落或镜头，可以换风格、换转场、拆分合并段落。</li>
-                <li>· 同一份歌词和 seed 总是编出同一个 PV；在「画面与编排」里换个 seed，就是另一种编排。</li>
-                <li>· 所有改动都能撤销（Ctrl+Z），工程会自动保存。</li>
+                <li>· {t('done.tip1')}</li>
+                <li>· {t('done.tip2')}</li>
+                <li>· {t('done.tip3')}</li>
             </ul>
         </div>
     );

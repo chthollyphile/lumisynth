@@ -5,9 +5,10 @@ import { useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { getStyle } from '@/packs/registry';
 import { useSession } from '@/project/session';
-import { PARAGRAPH_KIND_LABELS, selectParagraph, selectShot, shotText, usePlayheadLocation } from './arrangeActions';
+import { useTranslation } from 'react-i18next';
+import { packShortLabel, paragraphKindLabel } from '@/i18n/catalog';
+import { selectParagraph, selectShot, shotText, usePlayheadLocation } from './arrangeActions';
 import { useProgram } from './DerivedProvider';
-import { packShortLabel } from './StylePanel';
 import { formatTime } from './Transport';
 import { showQuickPick } from './workbench/QuickPick';
 
@@ -15,6 +16,7 @@ export function Breadcrumbs() {
     const program = useProgram();
     const selection = useSession(state => state.selection);
     const location = usePlayheadLocation(program);
+    const { t } = useTranslation('workbench');
 
     const { paragraph, shot } = useMemo(() => {
         if (selection.type === 'shot' || selection.type === 'paragraph') {
@@ -31,11 +33,11 @@ export function Breadcrumbs() {
 
     const pickParagraph = async () => {
         const chosen = await showQuickPick(program.paragraphs.map(item => ({
-            label: `${item.index + 1}. ${PARAGRAPH_KIND_LABELS[item.kind]} · ${packShortLabel(item.direction.pack)}`,
+            label: `${item.index + 1}. ${paragraphKindLabel(item.kind)} · ${packShortLabel(item.direction.pack)}`,
             description: formatTime(item.startTime),
             value: item,
             picked: item.id === paragraph.id,
-        })), { title: '跳到段落' });
+        })), { title: t('breadcrumbs.jumpToParagraph') });
         if (chosen) selectParagraph(chosen);
     };
 
@@ -46,17 +48,17 @@ export function Breadcrumbs() {
             value: item,
             thumbnail: item.style,
             picked: item.id === shot?.id,
-        })), { title: `第 ${paragraph.index + 1} 段的镜头` });
+        })), { title: t('breadcrumbs.shotsOf', { n: paragraph.index + 1 }) });
         if (chosen) selectShot(paragraph, chosen);
     };
 
     const crumb = 'rounded px-1 hover:bg-zinc-800 hover:text-zinc-100';
     return (
-        <nav aria-label="位置" className="flex h-6 shrink-0 items-center gap-0.5 overflow-hidden border-b border-zinc-800 bg-zinc-950 px-2 text-[11px] whitespace-nowrap text-zinc-400">
-            <span className="px-1 text-zinc-500">全曲</span>
+        <nav aria-label={t('breadcrumbs.label')} className="flex h-6 shrink-0 items-center gap-0.5 overflow-hidden border-b border-zinc-800 bg-zinc-950 px-2 text-[11px] whitespace-nowrap text-zinc-400">
+            <span className="px-1 text-zinc-500">{t('breadcrumbs.song')}</span>
             <ChevronRight size={12} className="shrink-0 text-zinc-600" />
             <button type="button" onClick={() => void pickParagraph()} className={crumb}>
-                {paragraph.index + 1}. {PARAGRAPH_KIND_LABELS[paragraph.kind]} · {packShortLabel(paragraph.direction.pack)}
+                {paragraph.index + 1}. {paragraphKindLabel(paragraph.kind)} · {packShortLabel(paragraph.direction.pack)}
             </button>
             {shot && (
                 <>

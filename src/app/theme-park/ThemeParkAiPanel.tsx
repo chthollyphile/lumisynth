@@ -11,6 +11,7 @@ import { useProjectStore } from '@/project/store';
 import { useProgram } from '../DerivedProvider';
 import { log } from '../output';
 import { Button } from '../ui';
+import { useTranslation } from 'react-i18next';
 
 const isLyricLine = (text: string) => text.trim().length > 0 && text !== '......' && text !== '♪';
 
@@ -56,6 +57,7 @@ export function ThemeParkAiPanel({ buildTheme, onImport }: { buildTheme: () => D
     const [promptCopied, markPromptCopied] = useCopied();
     const [jsonCopied, markJsonCopied] = useCopied();
     const abort = useRef<AbortController | null>(null);
+    const { t } = useTranslation('theme');
     useEffect(() => () => abort.current?.abort(), []);
 
     const generate = async () => {
@@ -67,7 +69,7 @@ export function ThemeParkAiPanel({ buildTheme, onImport }: { buildTheme: () => D
         try {
             const dual = await requestTheme(source.text, source.isPureMusic, source.title, controller.signal);
             onImport(dual);
-            log(`AI 主题已放进草稿：${dual.dark.name} / ${dual.light.name}（还没有应用）`);
+            log(t('ai.generated', { dark: dual.dark.name, light: dual.light.name }));
         } catch (reason) {
             if (!controller.signal.aborted) setError((reason as Error).message);
         } finally {
@@ -80,7 +82,7 @@ export function ThemeParkAiPanel({ buildTheme, onImport }: { buildTheme: () => D
             await navigator.clipboard.writeText(text);
             done();
         } catch (reason) {
-            log(`复制失败：${(reason as Error).message}`, 'error');
+            log(t('ai.copyFailed', { message: (reason as Error).message }), 'error');
         }
     };
 
@@ -91,31 +93,31 @@ export function ThemeParkAiPanel({ buildTheme, onImport }: { buildTheme: () => D
             onImport(parseAiThemeJsonInput(json) as DualTheme);
             setJson('');
         } catch {
-            setImportError('不是有效的主题 JSON（需要包含 light 与 dark 两个对象）');
+            setImportError(t('ai.invalidJson'));
         }
     };
 
     return (
         <div className="space-y-4">
-            <Card title="用 AI 生成到草稿" hint={available ? '按整首歌词生成一对深色 / 浅色主题，放进草稿，预览里看过再应用。' : '还没有配置 AI：在主侧栏「AI」里选择提供方并填写密钥。'}>
+            <Card title={t('ai.generate')} hint={available ? t('ai.generateHint') : t('ai.noProvider')}>
                 <Button variant="primary" className="w-full" disabled={!available || busy} onClick={() => void generate()}>
-                    <Sparkles size={14} /> {busy ? '生成中…' : '生成'}
+                    <Sparkles size={14} /> {busy ? t('ai.busy') : t('ai.run')}
                 </Button>
                 {error && <div className="text-xs text-red-400">{error}</div>}
             </Card>
 
-            <Card title="复制提示词" hint="贴到任意 AI 对话里，让它按同样的格式输出主题 JSON。">
+            <Card title={t('ai.copyPrompt')} hint={t('ai.copyPromptHint')}>
                 <Button className="w-full" onClick={() => void copy(`${THEME_GENERATION_PROMPT_PREFIX}\n\n${buildThemeSourcePrompt(source.text, source.isPureMusic, source.title)}`, markPromptCopied)}>
-                    {promptCopied ? <Check size={14} /> : <Copy size={14} />} {promptCopied ? '已复制' : '复制提示词'}
+                    {promptCopied ? <Check size={14} /> : <Copy size={14} />} {promptCopied ? t('ai.copied') : t('ai.copyPrompt')}
                 </Button>
             </Card>
 
-            <Card title="导入 JSON 到草稿" hint="支持纯 JSON、```json 代码块，或夹在说明文字里的输出。">
+            <Card title={t('ai.import')} hint={t('ai.importHint')}>
                 <textarea
-                    aria-label="主题 JSON"
+                    aria-label={t('ai.json')}
                     value={json}
                     rows={6}
-                    placeholder="把 AI 返回的 JSON 贴在这里"
+                    placeholder={t('ai.jsonPlaceholder')}
                     onChange={event => {
                         setJson(event.target.value);
                         setImportError(null);
@@ -125,13 +127,13 @@ export function ThemeParkAiPanel({ buildTheme, onImport }: { buildTheme: () => D
                 />
                 {importError && <div className="text-xs text-red-400">{importError}</div>}
                 <Button className="w-full" disabled={!json.trim()} onClick={importJson}>
-                    <Download size={14} /> 导入到草稿
+                    <Download size={14} /> {t('ai.importButton')}
                 </Button>
             </Card>
 
-            <Card title="导出当前草稿">
+            <Card title={t('ai.export')}>
                 <Button className="w-full" onClick={() => void copy(JSON.stringify(buildTheme(), null, 2), markJsonCopied)}>
-                    {jsonCopied ? <Check size={14} /> : <Copy size={14} />} {jsonCopied ? '已复制' : '复制主题 JSON'}
+                    {jsonCopied ? <Check size={14} /> : <Copy size={14} />} {jsonCopied ? t('ai.copied') : t('ai.copyJson')}
                 </Button>
             </Card>
         </div>

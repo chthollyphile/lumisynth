@@ -12,8 +12,10 @@ import { useSession } from '@/project/session';
 import { useProjectStore } from '@/project/store';
 import { useProgram } from './DerivedProvider';
 import { usePlayback } from './playback';
+import { useTranslation } from 'react-i18next';
 
 export function ClipHandles({ width, height, scale }: { width: number; height: number; scale: number }) {
+    const { t } = useTranslation('media');
     const selection = useSession(state => state.selection);
     const clips = useProjectStore(state => state.project.assetClips);
     const assets = useProjectStore(state => state.project.assets);
@@ -97,12 +99,12 @@ export function ClipHandles({ width, height, scale }: { width: number; height: n
             }}
         >
             <div
-                aria-label="旋转"
+                aria-label={t('clip.rotation')}
                 onPointerDown={event => drag(event, 'rotate')}
                 className="absolute -top-6 left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border border-emerald-200 bg-emerald-500"
             />
             <div
-                aria-label="缩放"
+                aria-label={t('handles.scale')}
                 onPointerDown={event => drag(event, 'scale')}
                 className="absolute -right-1.5 -bottom-1.5 h-3 w-3 cursor-nwse-resize border border-emerald-200 bg-emerald-500"
             />

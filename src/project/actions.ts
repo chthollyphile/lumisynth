@@ -11,6 +11,7 @@ import { log } from '@/app/output';
 import { replaceObjectUrl, setSession, useSession } from './session';
 import { getProject, updateProject, useProjectStore } from './store';
 import type { AssetRef, LumiProject } from './types';
+import { resources, t } from '@/i18n';
 
 const LAST_PROJECT_KEY = 'lumisynth:last-project';
 
@@ -23,8 +24,11 @@ const safeLocalStorage = {
     },
 };
 
+/** 还是默认名字（任何一种界面语言下建的）：导入音频时用歌名替换。 */
+const isUntitled = (name: string) => Object.values(resources).some(dictionary => dictionary.project.untitled === name);
+
 const reportError = (prefix: string, error: unknown) => {
-    const message = `${prefix}：${error instanceof Error ? error.message : String(error)}`;
+    const message = t('project:errorWithReason', { prefix, message: error instanceof Error ? error.message : String(error) });
     console.error(message, error);
     log(message, 'error');
     setSession({ error: message, status: null });
@@ -41,20 +45,20 @@ const loadAudioIntoSession = async (blob: Blob | null) => {
     setSession({ audioBuffer: null, analysis: null, analysisProgress: blob ? 0 : null });
     if (!blob) return;
     try {
-        setSession({ status: '解码音频…' });
+        setSession({ status: t('project:status.decoding') });
         const buffer = await decodeAudioBlob(blob);
         if (token !== audioLoadToken) return;
-        setSession({ audioBuffer: buffer, status: '分析音频…' });
+        setSession({ audioBuffer: buffer, status: t('project:status.analyzing') });
         const analysis = await analyzeAudioBuffer(buffer, progress => {
             if (token === audioLoadToken) setSession({ analysisProgress: progress });
         });
         if (token !== audioLoadToken) return;
         setSession({ analysis, analysisProgress: null, status: null });
-        log(`音频分析完成：${buffer.duration.toFixed(1)}s，${buffer.numberOfChannels} 声道`);
+        log(t('project:analyzed', { duration: buffer.duration.toFixed(1), count: buffer.numberOfChannels }));
     } catch (error) {
         if (token === audioLoadToken) {
             setSession({ analysisProgress: null });
-            reportError('音频解码失败', error);
+            reportError(t('project:errors.decode'), error);
         }
     }
 };
@@ -102,7 +106,7 @@ export const startAutosave = () => {
         if (state.project === previous.project) return;
         if (autosaveTimer) clearTimeout(autosaveTimer);
         autosaveTimer = setTimeout(() => {
-            void saveProjectRow(useProjectStore.getState().project).catch(error => reportError('保存失败', error));
+            void saveProjectRow(useProjectStore.getState().project).catch(error => reportError(t('project:errors.save'), error));
         }, 600);
     });
 };
@@ -114,7 +118,7 @@ export const flushAutosave = async () => {
 };
 
 const openProjectObject = async (project: LumiProject) => {
-    log(`打开工程「${project.name}」`);
+    log(t('project:opened', { name: project.name }));
     useProjectStore.getState().replace(project);
     safeLocalStorage.set(LAST_PROJECT_KEY, project.id);
     await saveProjectRow(project);
@@ -159,7 +163,7 @@ export const importProjectFile = async (file: Blob) => {
         await openProjectObject({ ...project, id: newId(), updatedAt: Date.now() });
         void collectGarbageAssets();
     } catch (error) {
-        reportError('导入工程失败', error);
+        reportError(t('project:errors.importProject'), error);
     }
 };
 
@@ -168,14 +172,14 @@ export const importProjectFile = async (file: Blob) => {
 
 export const importAudioFile = async (file: File) => {
     try {
-        setSession({ status: '读取音频…', error: null });
+        setSession({ status: t('project:status.reading'), error: null });
         const [ref, metadata] = await Promise.all([putAsset(file, file.name), readAudioMetadata(file)]);
         let coverRef: AssetRef | null = null;
         const project = getProject();
         if (metadata.cover && !project.cover) coverRef = await putAsset(metadata.cover, 'cover');
         updateProject(current => ({
             ...current,
-            name: current.name === '未命名工程' && (metadata.title || file.name)
+            name: isUntitled(current.name) && (metadata.title || file.name)
                 ? (metadata.title || file.name.replace(/\.[^.]+$/, ''))
                 : current.name,
             audio: ref,
@@ -193,7 +197,7 @@ export const importAudioFile = async (file: File) => {
         if (coverRef) void loadCoverIntoSession(metadata.cover);
         await loadAudioIntoSession(file);
     } catch (error) {
-        reportError('导入音频失败', error);
+        reportError(t('project:errors.importAudio'), error);
     }
 };
 
@@ -206,7 +210,7 @@ export const importLyricsFile = async (file: File, kind: 'lyrics' | 'translation
             // 换了歌词，旧的逐行修改大多会失效；保留它们，失效的会在编辑器里列出来。
         }));
     } catch (error) {
-        reportError('读取字幕失败', error);
+        reportError(t('project:errors.readLyrics'), error);
     }
 };
 
@@ -218,7 +222,7 @@ export const importCoverFile = async (file: File) => {
         updateProject(project => ({ ...project, cover: ref }));
         await loadCoverIntoSession(file);
     } catch (error) {
-        reportError('导入封面失败', error);
+        reportError(t('project:errors.importCover'), error);
     }
 };
 

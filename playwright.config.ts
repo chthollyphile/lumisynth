@@ -25,6 +25,8 @@ export default defineConfig({
   use: {
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 1,
+    // 测试按中文界面的文字找元素；英文界面另有专门的测试（workbench.spec）。
+    locale: 'zh-CN',
     launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
   expect: {

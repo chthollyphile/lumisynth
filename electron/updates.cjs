@@ -5,6 +5,7 @@
 //   这两个平台只查 GitHub 上最新的正式版，有新版本就提示去下载页。
 // 启动几秒后查一次；macOS 的应用菜单里另有「检查更新…」。draft / 预发布的版本不会被当成新版本。
 const { app, dialog, net, shell, BrowserWindow } = require('electron');
+const { tr, syncLanguageFromPage } = require('./i18n.cjs');
 
 // 与 package.json 里 build.publish 的 owner / repo 保持一致。
 const RELEASE_REPO = 'chthollyphile/lumisynth';
@@ -15,9 +16,13 @@ let windowsUpdater = null;
 
 const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
 
-const showMessage = options => (parentWindow()
-    ? dialog.showMessageBox(parentWindow(), options)
-    : dialog.showMessageBox(options));
+/** options 是函数：先按页面的界面语言对好，再取文字。 */
+const showMessage = async build => {
+    const parent = parentWindow();
+    await syncLanguageFromPage(parent?.webContents);
+    const options = build();
+    return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+};
 
 /** A.B.C 比大小；带预发布后缀的版本不参与比较。 */
 const parseVersion = value => {
@@ -39,12 +44,12 @@ const latestRelease = async () => {
         headers: { Accept: 'application/vnd.github+json', 'User-Agent': `lumisynth/${app.getVersion()}` },
     });
     if (response.status === 404) return null; // 还没有正式版
-    if (!response.ok) throw new Error(`GitHub 返回 ${response.status}`);
+    if (!response.ok) throw new Error(tr('updates.githubStatus', { status: response.status }));
     const release = await response.json();
     return { version: String(release.tag_name).replace(/^v/, ''), url: release.html_url };
 };
 
-const upToDate = () => showMessage({ type: 'info', message: '已是最新版本', detail: `lumisynth ${app.getVersion()}` });
+const upToDate = () => showMessage(() => ({ type: 'info', message: tr('updates.upToDate'), detail: `lumisynth ${app.getVersion()}` }));
 
 const checkByRelease = async manual => {
     const release = await latestRelease();
@@ -52,14 +57,14 @@ const checkByRelease = async manual => {
         if (manual) await upToDate();
         return;
     }
-    const { response } = await showMessage({
+    const { response } = await showMessage(() => ({
         type: 'info',
-        buttons: ['前往下载', '稍后'],
+        buttons: [tr('updates.download'), tr('updates.later')],
         defaultId: 0,
         cancelId: 1,
-        message: `lumisynth ${release.version} 已发布`,
-        detail: `当前版本 ${app.getVersion()}。下载新版安装包覆盖安装即可，工程数据会保留。`,
-    });
+        message: tr('updates.released', { version: release.version }),
+        detail: tr('updates.releasedDetail', { current: app.getVersion() }),
+    }));
     if (response === 0) void shell.openExternal(release.url);
 };
 
@@ -69,14 +74,14 @@ const getWindowsUpdater = () => {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.on('update-downloaded', async info => {
-        const { response } = await showMessage({
+        const { response } = await showMessage(() => ({
             type: 'info',
-            buttons: ['立即重启', '稍后'],
+            buttons: [tr('updates.restart'), tr('updates.later')],
             defaultId: 0,
             cancelId: 1,
-            message: `lumisynth ${info.version} 已下载`,
-            detail: '重启后完成安装；选「稍后」会在退出 lumisynth 时安装。',
-        });
+            message: tr('updates.downloaded', { version: info.version }),
+            detail: tr('updates.downloadedDetail'),
+        }));
         if (response === 0) autoUpdater.quitAndInstall();
     });
     autoUpdater.on('error', error => console.warn('[lumisynth] 自动更新失败', error));
@@ -88,7 +93,7 @@ const checkOnWindows = async manual => {
     const result = await getWindowsUpdater().checkForUpdates();
     const version = result?.updateInfo?.version;
     if (manual && (!version || !isNewer(version, app.getVersion()))) await upToDate();
-    else if (manual) await showMessage({ type: 'info', message: `正在下载 lumisynth ${version}`, detail: '下载完成后会提示重启安装。' });
+    else if (manual) await showMessage(() => ({ type: 'info', message: tr('updates.downloading', { version }), detail: tr('updates.downloadingDetail') }));
 };
 
 /** manual：用户手动点的，结果（包括「已是最新」与出错）都要告诉用户；启动时的自动检查出错不打扰。 */
@@ -100,7 +105,7 @@ const checkForUpdates = async ({ manual = false } = {}) => {
         else await checkByRelease(manual);
     } catch (error) {
         console.warn('[lumisynth] 检查更新失败', error);
-        if (manual) await showMessage({ type: 'warning', message: '检查更新失败', detail: error instanceof Error ? error.message : String(error) });
+        if (manual) await showMessage(() => ({ type: 'warning', message: tr('updates.failed'), detail: error instanceof Error ? error.message : String(error) }));
     } finally {
         checking = false;
     }

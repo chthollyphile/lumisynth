@@ -5,20 +5,22 @@ import { Wand2, X } from 'lucide-react';
 import { useProjectStore } from '@/project/store';
 import { Button } from '../ui';
 import { dismissEmptyStageCard, openWizard, useWizard } from './wizardStore';
+import { useTranslation } from 'react-i18next';
 
 export function EmptyStageCard() {
     const empty = useProjectStore(state => !state.project.audio && !state.project.lyrics);
     const projectId = useProjectStore(state => state.project.id);
     const wizardOpen = useWizard(state => state.open);
     const dismissed = useWizard(state => state.dismissed.includes(projectId));
+    const { t } = useTranslation('wizard');
     if (!empty || wizardOpen || dismissed) return null;
     return (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
             <div data-testid="empty-stage" className="pointer-events-auto relative flex max-w-sm flex-col items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/90 px-8 py-7 text-center shadow-2xl backdrop-blur">
                 <button
                     type="button"
-                    aria-label="关闭引导"
-                    title="关闭（之后可以从标题栏的「快速制作」打开向导）"
+                    aria-label={t('empty.close')}
+                    title={t('empty.closeHint')}
                     onClick={() => dismissEmptyStageCard(projectId)}
                     className="absolute top-2 right-2 rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
                 >
@@ -27,12 +29,12 @@ export function EmptyStageCard() {
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-400/15 text-amber-400">
                     <Wand2 size={20} />
                 </div>
-                <div className="text-base font-semibold text-zinc-50">做一支歌词 PV</div>
-                <div className="text-sm leading-relaxed text-zinc-400">放进歌曲和歌词，挑一种风格、选个配色，几步就能看到成片。</div>
+                <div className="text-base font-semibold text-zinc-50">{t('empty.title')}</div>
+                <div className="text-sm leading-relaxed text-zinc-400">{t('empty.body')}</div>
                 <Button variant="primary" onClick={() => void openWizard({ fresh: false })}>
-                    <Wand2 size={14} /> 开始制作
+                    <Wand2 size={14} /> {t('empty.start')}
                 </Button>
-                <div className="text-[11px] text-zinc-500">也可以直接把音频和歌词文件拖进窗口</div>
+                <div className="text-[11px] text-zinc-500">{t('empty.drop')}</div>
             </div>
         </div>
     );

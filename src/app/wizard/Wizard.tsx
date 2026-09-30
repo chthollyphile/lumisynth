@@ -14,8 +14,7 @@ import { StepSong } from './StepSong';
 import { StepStyle } from './StepStyle';
 import { StepTheme } from './StepTheme';
 import { closeWizard, setWizardStep, useWizard, WIZARD_STEPS } from './wizardStore';
-
-const STEP_TITLES = ['放进歌曲', '挑一种风格', '加点素材（可选）', '选个配色', '完成了'];
+import { useTranslation } from 'react-i18next';
 
 /** 换步骤时内容顺着前进 / 后退的方向滑过去（custom = 方向，1 前进、-1 后退）。 */
 const stepSlide: Variants = {
@@ -37,6 +36,7 @@ function WizardBody({ docked }: { docked: boolean }) {
     // 记下上一步，算出这次是前进还是后退（渲染期间派生，不必多一轮 effect）。
     const [shown, setShown] = useState(step);
     const [direction, setDirection] = useState(1);
+    const { t } = useTranslation('wizard');
     if (shown !== step) {
         setDirection(step > shown ? 1 : -1);
         setShown(step);
@@ -58,7 +58,7 @@ function WizardBody({ docked }: { docked: boolean }) {
     return (
         <motion.aside
             role="dialog"
-            aria-label="快速制作向导"
+            aria-label={t('title')}
             data-testid="wizard"
             // 停靠时从右侧滑入（Workbench 关掉时直接撤下、换回检查器）；移动端整屏从下方升起、退场再落下。
             initial={docked ? { opacity: 0, x: 32 } : { opacity: 0, y: 40 }}
@@ -73,19 +73,19 @@ function WizardBody({ docked }: { docked: boolean }) {
             <header className="shrink-0 border-b border-zinc-800 px-5 pt-4 pb-3">
                 <div className="flex items-center gap-2">
                     <Wand2 size={16} className="text-amber-400" />
-                    <span className="text-sm font-medium text-zinc-100">快速制作 PV</span>
-                    <button type="button" aria-label="关闭向导" onClick={closeWizard} className="ml-auto rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200">
+                    <span className="text-sm font-medium text-zinc-100">{t('heading')}</span>
+                    <button type="button" aria-label={t('close')} onClick={closeWizard} className="ml-auto rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200">
                         <X size={16} />
                     </button>
                 </div>
-                <ol className="mt-3 flex items-center gap-1.5" aria-label="步骤">
-                    {WIZARD_STEPS.map((label, index) => {
+                <ol className="mt-3 flex items-center gap-1.5" aria-label={t('steps.label')}>
+                    {WIZARD_STEPS.map((id, index) => {
                         const done = index < step;
                         const current = index === step;
                         // 只能回到走过的步骤，或者在有歌之后往后跳。
                         const reachable = index <= step || hasSong;
                         return (
-                            <li key={label} className="flex flex-1 items-center gap-1.5">
+                            <li key={id} className="flex flex-1 items-center gap-1.5">
                                 <button
                                     type="button"
                                     disabled={!reachable}
@@ -103,7 +103,7 @@ function WizardBody({ docked }: { docked: boolean }) {
                                     >
                                         {done ? <Check size={11} /> : index + 1}
                                     </motion.span>
-                                    <span className={cx('text-xs whitespace-nowrap', current ? 'text-zinc-100' : 'text-zinc-500')}>{label}</span>
+                                    <span className={cx('text-xs whitespace-nowrap', current ? 'text-zinc-100' : 'text-zinc-500')}>{t(`steps.${id}`)}</span>
                                 </button>
                                 {index < WIZARD_STEPS.length - 1 && (
                                     <span className="relative h-px flex-1 overflow-hidden bg-zinc-800">
@@ -132,7 +132,7 @@ function WizardBody({ docked }: { docked: boolean }) {
                         exit="exit"
                         transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
                     >
-                        <h2 className="mb-4 text-lg font-semibold text-zinc-50">{STEP_TITLES[step]}</h2>
+                        <h2 className="mb-4 text-lg font-semibold text-zinc-50">{t(`stepTitles.${WIZARD_STEPS[step]}`)}</h2>
                         {step === 0 && <StepSong />}
                         {step === 1 && <StepStyle />}
                         {step === 2 && <StepAssets />}
@@ -146,12 +146,12 @@ function WizardBody({ docked }: { docked: boolean }) {
                 <footer className="flex shrink-0 items-center gap-2 border-t border-zinc-800 px-5 py-3">
                     {step > 0 && (
                         <Button variant="ghost" onClick={() => setWizardStep(step - 1)}>
-                            <ArrowLeft size={14} /> 上一步
+                            <ArrowLeft size={14} /> {t('back')}
                         </Button>
                     )}
-                    <span className="flex-1 text-[11px] text-zinc-500">{!canNext ? '至少放进音频或歌词中的一样' : '每一步都能在左边的预览里马上看到'}</span>
+                    <span className="flex-1 text-[11px] text-zinc-500">{!canNext ? t('needSong') : t('previewHint')}</span>
                     <Button variant="primary" disabled={!canNext} onClick={() => setWizardStep(step + 1)}>
-                        下一步 <ArrowRight size={14} />
+                        {t('next')} <ArrowRight size={14} />
                     </Button>
                 </footer>
             )}

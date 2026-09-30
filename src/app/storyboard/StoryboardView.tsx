@@ -13,13 +13,15 @@ import { setParagraphDirection, setParagraphTransition } from '@/project/edits';
 import { setSession, useSession } from '@/project/session';
 import { updateProject, useProjectStore } from '@/project/store';
 import { isolateLines, mergeWithPrevious, resetParagraphStructure, setParagraphKind } from '@/project/structure';
-import { PARAGRAPH_KIND_LABELS, paragraphMenu, selectParagraph, selectShot, shotMenu, usePlayheadLocation } from '../arrangeActions';
+import { useTranslation } from 'react-i18next';
+import { packLabel, packShortLabel, paragraphKindLabel } from '@/i18n/catalog';
+import { paragraphMenu, selectParagraph, selectShot, shotMenu, usePlayheadLocation } from '../arrangeActions';
 import { useProgram } from '../DerivedProvider';
 import { StyleThumb, useThumbnailLook } from '../library/StyleThumb';
 import type { ThumbnailLook } from '../library/thumbnails';
 import { log } from '../output';
 import { seek } from '../playback';
-import { packColor, packShortLabel } from '../StylePanel';
+import { packColor } from '../StylePanel';
 import { revealInTimeline } from '../timeline/reveal';
 import { formatTime } from '../Transport';
 import { Button, cx } from '../ui';
@@ -47,11 +49,12 @@ function ShotFrame({ paragraph, shot, look, selected, playing, program }: {
 }) {
     const style = getStyle(shot.style);
     const number = paragraph.shots.indexOf(shot) + 1;
+    const { t } = useTranslation('arrange');
     return (
         <button
             type="button"
             data-storyboard-shot={shot.id}
-            title={`镜头 ${paragraph.index + 1}.${number} · ${shot.style}${shot.locked ? '（锁定）' : '（自动）'} · ${formatTime(shot.startTime)}–${formatTime(shot.endTime)}`}
+            title={t(shot.locked ? 'storyboard.shotTitleLocked' : 'storyboard.shotTitleAuto', { shot: `${paragraph.index + 1}.${number}`, style: shot.style, range: `${formatTime(shot.startTime)}–${formatTime(shot.endTime)}` })}
             onPointerDown={stop}
             onClick={event => { stop(event); selectShot(paragraph, shot); }}
             onContextMenu={event => { stop(event); selectShot(paragraph, shot, false); showContextMenu(event, shotMenu(program, paragraph, shot)); }}
@@ -79,6 +82,7 @@ function ParagraphDetails({ paragraph, override, transitionOp, isLast }: {
     const { direction } = paragraph;
     const families = findPack(direction.pack)?.families ?? [];
     const activeFamilies = direction.families?.filter(id => families.some(family => family.id === id)) ?? null;
+    const { t } = useTranslation(['arrange', 'common']);
     return (
         <div className="space-y-1.5 border-b border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400" onPointerDown={stop} onClick={stop}>
             <div className="flex flex-wrap items-center gap-2">
@@ -87,35 +91,35 @@ function ParagraphDetails({ paragraph, override, transitionOp, isLast }: {
                         type="checkbox"
                         checked={direction.energy !== null}
                         onChange={event => setParagraphDirection(paragraph, { energy: event.target.checked ? 0.5 : 'auto' })}
-                        aria-label="手动指定能量"
+                        aria-label={t('storyboard.manualEnergy')}
                     />
-                    能量
+                    {t('storyboard.energy')}
                 </label>
-                {direction.energy === null ? <span className="text-zinc-500">自动（按性质与字数）</span> : (
+                {direction.energy === null ? <span className="text-zinc-500">{t('storyboard.energyAuto')}</span> : (
                     <>
                         <input
                             type="range" min={0} max={1} step={0.01}
                             value={direction.energy}
                             onChange={event => setParagraphDirection(paragraph, { energy: Number(event.target.value) })}
                             className="w-28"
-                            aria-label="能量"
+                            aria-label={t('storyboard.energy')}
                         />
                         <span className="w-8 tabular-nums text-zinc-200">{direction.energy.toFixed(2)}</span>
                     </>
                 )}
                 {!isLast && (
                     <>
-                        <span className="ml-3">出场转场</span>
+                        <span className="ml-3">{t('storyboard.transition')}</span>
                         <select
                             value={transitionOp?.type === 'transition' ? transitionOp.transition : 'auto'}
                             onChange={event => setParagraphTransition(paragraph, event.target.value as TransitionId | 'none' | 'auto')}
                             className={cx(selectClass, transitionOp && 'border-amber-400/60')}
-                            aria-label={`第 ${paragraph.index + 1} 段的出场转场`}
+                            aria-label={t('pick.paragraphTransition', { n: paragraph.index + 1 })}
                         >
-                            <option value="auto">自动{paragraph.transitionOut && !transitionOp ? `（${getTransition(paragraph.transitionOut.id)?.label ?? paragraph.transitionOut.id}）` : ''}</option>
-                            <option value="none">无转场</option>
+                            <option value="auto">{paragraph.transitionOut && !transitionOp ? t('common:autoValue', { value: getTransition(paragraph.transitionOut.id)?.label ?? paragraph.transitionOut.id }) : t('common:auto')}</option>
+                            <option value="none">{t('pick.noTransition')}</option>
                             {listPacks().map(pack => (
-                                <optgroup key={pack.id} label={pack.label}>
+                                <optgroup key={pack.id} label={packLabel(pack.id)}>
                                     {pack.transitions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
                                 </optgroup>
                             ))}
@@ -128,12 +132,12 @@ function ParagraphDetails({ paragraph, override, transitionOp, isLast }: {
                         onClick={() => setParagraphDirection(paragraph, { pack: 'auto', energy: 'auto', families: 'auto' })}
                         className="ml-auto rounded px-1.5 py-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
                     >
-                        <RotateCcw size={11} className="inline" /> 包、能量、构图族交回自动
+                        <RotateCcw size={11} className="inline" /> {t('storyboard.resetDirection')}
                     </button>
                 )}
             </div>
             <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1">构图族</span>
+                <span className="mr-1">{t('storyboard.families')}</span>
                 {families.map(family => {
                     const on = activeFamilies?.includes(family.id) ?? false;
                     return (
@@ -152,7 +156,7 @@ function ParagraphDetails({ paragraph, override, transitionOp, isLast }: {
                         </button>
                     );
                 })}
-                <span className="text-[11px] text-zinc-500">{activeFamilies ? '' : '（不选即不限）'}</span>
+                <span className="text-[11px] text-zinc-500">{activeFamilies ? '' : t('storyboard.familiesAny')}</span>
             </div>
         </div>
     );
@@ -171,10 +175,12 @@ function ParagraphBand({ paragraph, program, override, expanded, onToggle, selec
     playing: boolean;
 }) {
     const color = packColor(paragraph.direction.pack);
+    const { t } = useTranslation(['arrange', 'common']);
+    const n = paragraph.index + 1;
     return (
         <aside
             data-storyboard-id={paragraph.id}
-            aria-label={`第 ${paragraph.index + 1} 段`}
+            aria-label={t('storyboard.paragraph', { n })}
             onClick={() => selectParagraph(paragraph)}
             onContextMenu={event => { selectParagraph(paragraph, false); showContextMenu(event, paragraphMenu(program, paragraph)); }}
             className={cx('group/band relative w-52 shrink-0 cursor-pointer border-r border-zinc-800 py-1.5 pr-2 pl-3', selected ? 'bg-sky-950/50' : 'bg-zinc-900/70 hover:bg-zinc-900')}
@@ -184,17 +190,17 @@ function ParagraphBand({ paragraph, program, override, expanded, onToggle, selec
                 <button
                     type="button"
                     onClick={event => { stop(event); mergeWithPrevious(program, paragraph, report); }}
-                    title="这一段并进上一段（这一段自己的编排与性质丢掉）"
+                    title={t('storyboard.mergeHint')}
                     className="absolute -top-2.5 right-2 z-10 flex items-center gap-1 rounded-full border border-zinc-600 bg-zinc-900 px-1.5 py-px text-[10px] text-zinc-300 opacity-0 group-hover/band:opacity-100 hover:border-amber-400 hover:text-amber-200 focus:opacity-100"
                 >
-                    <Merge size={10} /> 合并
+                    <Merge size={10} /> {t('storyboard.merge')}
                 </button>
             )}
             <div className="sticky top-1 space-y-1">
                 <div className="flex items-center gap-1">
                     <button
                         type="button"
-                        aria-label={expanded ? `收起第 ${paragraph.index + 1} 段` : `展开第 ${paragraph.index + 1} 段`}
+                        aria-label={expanded ? t('storyboard.collapse', { n }) : t('storyboard.expand', { n })}
                         aria-expanded={expanded}
                         onClick={event => { stop(event); onToggle(); }}
                         className="-ml-1 rounded p-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
@@ -207,10 +213,10 @@ function ParagraphBand({ paragraph, program, override, expanded, onToggle, selec
                         onClick={stop}
                         onChange={event => setParagraphKind(paragraph, event.target.value as ParagraphKind | 'auto', report)}
                         className={cx(selectClass, 'flex-1', paragraph.kindManual && 'border-amber-400/60')}
-                        aria-label={`第 ${paragraph.index + 1} 段的性质`}
+                        aria-label={t('storyboard.kindOf', { n })}
                     >
-                        <option value="auto">自动（{PARAGRAPH_KIND_LABELS[paragraph.kind]}）</option>
-                        {PARAGRAPH_KINDS.map(kind => <option key={kind} value={kind}>{PARAGRAPH_KIND_LABELS[kind]}</option>)}
+                        <option value="auto">{t('common:autoValue', { value: paragraphKindLabel(paragraph.kind) })}</option>
+                        {PARAGRAPH_KINDS.map(kind => <option key={kind} value={kind}>{paragraphKindLabel(kind)}</option>)}
                     </select>
                 </div>
                 <div className="flex items-center gap-1 pl-5">
@@ -220,24 +226,24 @@ function ParagraphBand({ paragraph, program, override, expanded, onToggle, selec
                         onClick={stop}
                         onChange={event => setParagraphDirection(paragraph, { pack: event.target.value as PackId | 'auto' })}
                         className={cx(selectClass, 'flex-1', override?.pack && 'border-amber-400/60')}
-                        aria-label={`第 ${paragraph.index + 1} 段的风格包`}
+                        aria-label={t('storyboard.packOf', { n })}
                     >
-                        <option value="auto">自动（{packShortLabel(paragraph.direction.pack)}）</option>
-                        {listPacks().map(pack => <option key={pack.id} value={pack.id}>{pack.label}</option>)}
+                        <option value="auto">{t('common:autoValue', { value: packShortLabel(paragraph.direction.pack) })}</option>
+                        {listPacks().map(pack => <option key={pack.id} value={pack.id}>{packLabel(pack.id)}</option>)}
                     </select>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-1.5 pl-5 text-[10px] text-zinc-500">
                     <span className="tabular-nums">{formatTime(paragraph.startTime)}</span>
-                    <span>{paragraph.shots.length} 个镜头</span>
+                    <span>{t('storyboard.shotCount', { count: paragraph.shots.length })}</span>
                     {override?.source === 'ai' && <span className="text-amber-300/80">AI</span>}
                     {(paragraph.boundary === 'manual' || paragraph.merged) && (
                         <button
                             type="button"
                             onClick={event => { stop(event); resetParagraphStructure(program, paragraph, report); }}
-                            title="去掉这一段的手动分段 / 合并，交回自动分段"
+                            title={t('storyboard.resetStructureHint')}
                             className="text-amber-300/80 hover:text-amber-200 hover:underline"
                         >
-                            {paragraph.boundary === 'manual' ? '手动分段' : '含合并'} · 恢复自动
+                            {paragraph.boundary === 'manual' ? t('storyboard.manualSplit') : t('storyboard.merged')} · {t('storyboard.restoreAuto')}
                         </button>
                     )}
                 </div>
@@ -262,6 +268,7 @@ export function StoryboardView() {
     // 拖选的歌词行：anchor 是按下的那一行，focus 是现在指着的那一行。
     const [range, setRange] = useState<{ anchor: number; focus: number } | null>(null);
     const drag = useRef<{ anchor: number; moved: boolean } | null>(null);
+    const { t } = useTranslation(['arrange', 'common']);
 
     const expanded = (paragraph: LumiParagraph) => allExpanded !== toggled.has(paragraph.id);
     const toggle = (paragraph: LumiParagraph) => setToggled(previous => {
@@ -328,7 +335,7 @@ export function StoryboardView() {
     };
 
     if (program.paragraphs.length === 0) {
-        return <div className="px-4 py-3 text-xs text-zinc-500">导入字幕或音频后，这里按段落列出全曲的歌词。</div>;
+        return <div className="px-4 py-3 text-xs text-zinc-500">{t('storyboard.empty')}</div>;
     }
 
     const from = range ? Math.min(range.anchor, range.focus) : -1;
@@ -342,8 +349,8 @@ export function StoryboardView() {
     return (
         <div data-testid="storyboard" className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800 px-4 py-2 text-xs">
-                <span className="text-sm text-zinc-100">分镜</span>
-                <span className="text-zinc-500">{program.paragraphs.length} 段 · {program.lines.length} 行 · {shots} 个镜头</span>
+                <span className="text-sm text-zinc-100">{t('storyboard.title')}</span>
+                <span className="text-zinc-500">{t('storyboard.paragraphCount', { count: program.paragraphs.length })} · {t('storyboard.lineCount', { count: program.lines.length })} · {t('storyboard.shotCount', { count: shots })}</span>
                 <div className="mx-1 h-4 w-px bg-zinc-800" />
                 <select
                     value={direction.mode === 'mix' ? 'mix' : direction.pack}
@@ -352,18 +359,18 @@ export function StoryboardView() {
                         updateProject(p => ({ ...p, direction: value === 'mix' ? { ...p.direction, mode: 'mix' } : { ...p.direction, mode: 'single', pack: value } }));
                     }}
                     className={cx(selectClass, 'h-7')}
-                    aria-label="全曲的风格包"
+                    aria-label={t('storyboard.songPack')}
                 >
-                    {listPacks().map(pack => <option key={pack.id} value={pack.id}>全曲用{pack.label}</option>)}
-                    <option value="mix">按段落性质混用</option>
+                    {listPacks().map(pack => <option key={pack.id} value={pack.id}>{t('storyboard.songUses', { pack: packLabel(pack.id) })}</option>)}
+                    <option value="mix">{t('storyboard.songMix')}</option>
                 </select>
-                <Button size="sm" variant="ghost" onClick={() => updateProject(p => ({ ...p, seed: newId().slice(0, 8) }))} title="换一个 seed，重新随机选风格与转场（手动固定的不变）">
-                    <Dices size={12} /> 重新随机编排
+                <Button size="sm" variant="ghost" onClick={() => updateProject(p => ({ ...p, seed: newId().slice(0, 8) }))} title={t('storyboard.reseedHint')}>
+                    <Dices size={12} /> {t('storyboard.reseed')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => { setAllExpanded(!allExpanded); setToggled(new Set()); }}>
-                    {allExpanded ? <ChevronsDownUp size={12} /> : <ChevronsUpDown size={12} />} {allExpanded ? '全部收起' : '全部展开'}
+                    {allExpanded ? <ChevronsDownUp size={12} /> : <ChevronsUpDown size={12} />} {allExpanded ? t('storyboard.collapseAll') : t('storyboard.expandAll')}
                 </Button>
-                <span className="ml-auto text-[11px] text-zinc-500">拖选歌词切出新段落 · 色条顶上「合并」 · 点 ▸ 展开这一段的镜头与细节</span>
+                <span className="ml-auto text-[11px] text-zinc-500">{t('storyboard.hint')}</span>
             </div>
 
             <div ref={list} className="min-h-0 flex-1 overflow-y-auto select-none">
@@ -418,7 +425,7 @@ export function StoryboardView() {
                                     {open && bridge.length > 0 && (
                                         <div className="flex items-center gap-3 px-3 py-1">
                                             <span className="w-16 shrink-0" />
-                                            <span className="flex-1 text-xs text-zinc-500">间奏（没有歌词）</span>
+                                            <span className="flex-1 text-xs text-zinc-500">{t('storyboard.bridge')}</span>
                                             <div className="flex flex-wrap justify-end gap-1.5">
                                                 {bridge.map(shot => (
                                                     <ShotFrame key={shot.id} paragraph={paragraph} shot={shot} look={look} program={program}
@@ -435,16 +442,19 @@ export function StoryboardView() {
             </div>
 
             {range && (
-                <div role="toolbar" aria-label="选中的歌词" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-amber-900/60 bg-amber-950/40 px-4 py-2 text-xs text-amber-100">
-                    <span>已选第 {from + 1}{to > from ? `–${to + 1}` : ''} 行（{to - from + 1} 行{spanned > 1 ? `，跨 ${spanned} 段` : ''}）</span>
-                    {exactParagraph ? <span className="text-amber-200/70">正好是第 {exactParagraph.index + 1} 段</span> : (
+                <div role="toolbar" aria-label={t('storyboard.selectedLyrics')} className="flex shrink-0 flex-wrap items-center gap-2 border-t border-amber-900/60 bg-amber-950/40 px-4 py-2 text-xs text-amber-100">
+                    <span>
+                        {t('storyboard.selected', { lines: to > from ? `${from + 1}–${to + 1}` : `${from + 1}`, count: to - from + 1 })}
+                        {spanned > 1 ? t('storyboard.selectedSpan', { count: spanned }) : ''}
+                    </span>
+                    {exactParagraph ? <span className="text-amber-200/70">{t('storyboard.exactParagraph', { n: exactParagraph.index + 1 })}</span> : (
                         <Button size="sm" variant="primary" onClick={() => { if (isolateLines(program, from, to, report)) setRange(null); }}>
-                            <Scissors size={12} /> 切成新段落
+                            <Scissors size={12} /> {t('storyboard.isolate')}
                         </Button>
                     )}
                     <div className="flex-1" />
-                    <span className="text-amber-200/60">Shift + 点击调整范围 · Esc 取消</span>
-                    <Button size="sm" variant="ghost" onClick={() => setRange(null)} aria-label="取消选择"><X size={12} /></Button>
+                    <span className="text-amber-200/60">{t('storyboard.rangeHint')}</span>
+                    <Button size="sm" variant="ghost" onClick={() => setRange(null)} aria-label={t('common:clearSelection')}><X size={12} /></Button>
                 </div>
             )}
         </div>

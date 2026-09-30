@@ -5,7 +5,8 @@ import { HexColorPicker } from 'react-colorful';
 import type { DualTheme } from '@/core/types';
 import { normalizeThemeHexColor } from '@/ai/vendor/themeSanitizer.mjs';
 import { cx, inputClass, Segmented } from '../ui';
-import { COLOR_FIELDS, MODE_LABELS, type EditableColorKey, type EditableMode } from './themeParkDraft';
+import { colorField, COLOR_KEYS, modeLabel, type EditableColorKey, type EditableMode } from './themeParkDraft';
+import { useTranslation } from 'react-i18next';
 
 /** react-colorful 拖动时 60fps 地回调：本地状态接住，只有取色器自己重绘；上层拿到的值由它自己节流。 */
 function FastColorPicker({ color, onChange }: { color: string; onChange: (color: string) => void }) {
@@ -47,7 +48,8 @@ export function ThemeParkColorPanel({
     onHexInput: (value: string) => void;
 }) {
     const theme = safeDraft[mode];
-    const active = COLOR_FIELDS.find(field => field.key === colorKey) ?? COLOR_FIELDS[0];
+    const { t } = useTranslation('theme');
+    const active = colorField(colorKey);
     const activeColor = theme[colorKey];
 
     return (
@@ -55,12 +57,13 @@ export function ThemeParkColorPanel({
             <Segmented<EditableMode>
                 value={mode}
                 onChange={onModeChange}
-                options={(['dark', 'light'] as const).map(value => ({ value, label: MODE_LABELS[value] }))}
+                options={(['dark', 'light'] as const).map(value => ({ value, label: modeLabel(value) }))}
             />
 
-            <div className="space-y-1.5" role="radiogroup" aria-label="颜色位">
-                {COLOR_FIELDS.map(field => {
-                    const selected = field.key === colorKey;
+            <div className="space-y-1.5" role="radiogroup" aria-label={t('colorSlots')}>
+                {COLOR_KEYS.map(key => {
+                    const selected = key === colorKey;
+                    const field = { key, ...colorField(key) };
                     return (
                         <button
                             key={field.key}
@@ -109,7 +112,7 @@ export function ThemeParkColorPanel({
 
             {recommended.length > 0 && (
                 <div className="space-y-2">
-                    <div className="text-[11px] tracking-widest text-zinc-500 uppercase">推荐色（封面与主题）</div>
+                    <div className="text-[11px] tracking-widest text-zinc-500 uppercase">{t('recommended')}</div>
                     <div className="flex flex-wrap gap-1.5">
                         {recommended.map(color => (
                             <button
@@ -117,7 +120,7 @@ export function ThemeParkColorPanel({
                                 type="button"
                                 onClick={() => onColor(color)}
                                 title={color.toUpperCase()}
-                                aria-label={`推荐色 ${color}`}
+                                aria-label={t('recommendedColor', { color })}
                                 className="h-7 w-7 rounded border border-white/15 transition-transform hover:scale-110"
                                 style={{ backgroundColor: color }}
                             />

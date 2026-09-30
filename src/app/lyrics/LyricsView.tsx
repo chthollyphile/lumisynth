@@ -31,6 +31,8 @@ import { clock, setPlaybackRate, usePlayback } from '../playback';
 import { Button, cx, inputClass, Segmented } from '../ui';
 import { playRange, setRangeLoop, stopRange, useRangePlayback } from './rangePlayback';
 import { formatMs, WordStrip } from './WordStrip';
+import { useTranslation } from 'react-i18next';
+import { t as translate } from '@/i18n';
 
 const lineIndexAt = (lines: Line[], time: number) => {
     let found = -1;
@@ -53,11 +55,12 @@ interface TapState {
 
 function LineText({ line, onCommit }: { line: Line; onCommit: (text: string) => void }) {
     const [draft, setDraft] = useState<string | null>(null);
+    const { t } = useTranslation('song');
     if (draft === null) {
         return (
             <span
                 onDoubleClick={event => { event.stopPropagation(); setDraft(line.fullText); }}
-                title="双击改字"
+                title={t('lyrics.doubleClickToEdit')}
                 className="min-w-0 flex-1 truncate text-zinc-100"
             >
                 {line.fullText}
@@ -71,7 +74,7 @@ function LineText({ line, onCommit }: { line: Line; onCommit: (text: string) => 
     return (
         <input
             autoFocus
-            aria-label="改这一行的字"
+            aria-label={t('lyrics.editLine')}
             value={draft}
             onClick={event => event.stopPropagation()}
             onChange={event => setDraft(event.target.value)}
@@ -92,33 +95,34 @@ function SegmentationPrompt({ anchor, line }: { anchor: LineAnchor; line: Line }
     const repair = useMemo(() => segmentationRepairFor(project, anchor, line), [project, anchor, line]);
     const saved = useProjectStore(state => state.project.lyricEdits.segments.find(item => item.anchor.index === anchor.index && item.anchor.hash === anchor.hash)?.parts);
     const [draft, setDraft] = useState<string | null>(null);
+    const { t } = useTranslation(['inspector', 'problems', 'common', 'song']);
     if (!repair) return null;
     const parts = draft?.split('|') ?? repair;
     const valid = isValidWordSegmentation(line.fullText, parts);
     return (
         <div role="alert" data-testid="segmentation-prompt" className="space-y-1.5 rounded border border-amber-800/70 bg-amber-950/40 px-3 py-2 text-xs text-amber-100">
-            <div className="flex items-center gap-1.5"><AlertTriangle size={13} /> 改字之后，这一行的手动分词对不上新文字了（现在先用自动分词）。</div>
-            <div className="text-zinc-300">原来：<span className="font-mono">{saved?.join('|')}</span></div>
+            <div className="flex items-center gap-1.5"><AlertTriangle size={13} /> {t('line.staleSegmentation')}</div>
+            <div className="text-zinc-300">{t('line.before')}<span className="font-mono">{saved?.join('|')}</span></div>
             {draft === null ? (
                 <>
-                    <div className="text-zinc-300">自动修复后：<span className="font-mono">{repair.join('|')}</span></div>
+                    <div className="text-zinc-300">{t('song:lyrics.repaired')}<span className="font-mono">{repair.join('|')}</span></div>
                     <div className="flex gap-1.5">
-                        <Button size="sm" variant="primary" onClick={() => repairLineSegmentation(anchor, line)}>自动修复</Button>
-                        <Button size="sm" onClick={() => setDraft(repair.join('|'))}>手动修改</Button>
+                        <Button size="sm" variant="primary" onClick={() => repairLineSegmentation(anchor, line)}>{t('problems:autoRepair')}</Button>
+                        <Button size="sm" onClick={() => setDraft(repair.join('|'))}>{t('problems:editManually')}</Button>
                     </div>
                 </>
             ) : (
                 <div className="flex items-center gap-1.5">
                     <input
                         autoFocus
-                        aria-label="手动分词"
+                        aria-label={t('line.segmentation')}
                         value={draft}
                         onChange={event => setDraft(event.target.value)}
                         onKeyDown={event => event.stopPropagation()}
                         className={cx(inputClass, 'h-7 flex-1 font-mono select-text', !valid && 'border-red-500')}
                     />
-                    <Button size="sm" variant="primary" disabled={!valid} onClick={() => { setLineSegments(anchor, parts); setDraft(null); }}>应用</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>取消</Button>
+                    <Button size="sm" variant="primary" disabled={!valid} onClick={() => { setLineSegments(anchor, parts); setDraft(null); }}>{t('line.apply')}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>{t('common:cancel')}</Button>
                 </div>
             )}
         </div>
@@ -127,6 +131,7 @@ function SegmentationPrompt({ anchor, line }: { anchor: LineAnchor; line: Line }
 
 export function LyricsView() {
     const { data, invalidEdits } = useEffectiveLyrics();
+    const { t } = useTranslation(['song', 'inspector']);
     const lines = useMemo(() => data?.lines ?? [], [data]);
     const lineEdits = useProjectStore(state => state.project.lyricEdits.lines);
     const selection = useSession(state => state.selection);
@@ -176,7 +181,7 @@ export function LyricsView() {
         if (!state || !commit || state.taps.length === 0) return;
         const result = applyTaps(state.units, state.bounds, state.taps, state.limit);
         setLineWords(state.anchor, state.line, result.units, { startTime: result.bounds.start, endTime: result.bounds.end });
-        log(`第 ${state.index + 1} 行打点完成：${Math.min(state.taps.length, state.units.length)} / ${state.units.length} 个字`);
+        log(translate('song:lyrics.tapDone', { n: state.index + 1, done: Math.min(state.taps.length, state.units.length), count: state.units.length }));
     };
     const tapRef = useRef(tap);
     tapRef.current = tap;
@@ -238,7 +243,7 @@ export function LyricsView() {
     };
 
     if (!data) {
-        return <div className="p-6 text-sm text-zinc-500 select-none">先导入歌词。</div>;
+        return <div className="p-6 text-sm text-zinc-500 select-none">{t('lyrics.importFirst')}</div>;
     }
 
     const lineRange = line ? { start: line.startTime - 0.3, end: line.endTime + 0.2 } : null;
@@ -251,37 +256,37 @@ export function LyricsView() {
                     size="sm"
                     disabled={!line || Boolean(tap)}
                     onClick={() => (playingLine && playing ? stopRange() : lineRange && playRange(lineRange.start, lineRange.end, loop))}
-                    title="播放这一行"
+                    title={t('lyrics.playLineHint')}
                 >
-                    {playingLine && playing ? <Pause size={12} /> : <Play size={12} />} 播放本行
+                    {playingLine && playing ? <Pause size={12} /> : <Play size={12} />} {t('lyrics.playLine')}
                 </Button>
-                <Button size="sm" variant={loop ? 'primary' : 'ghost'} aria-pressed={loop} onClick={() => { setLoop(!loop); setRangeLoop(!loop); }} title="循环播放这一行">
-                    <Repeat size={12} /> 循环
+                <Button size="sm" variant={loop ? 'primary' : 'ghost'} aria-pressed={loop} onClick={() => { setLoop(!loop); setRangeLoop(!loop); }} title={t('lyrics.loopHint')}>
+                    <Repeat size={12} /> {t('lyrics.loop')}
                 </Button>
                 <Segmented<string>
                     value={String(rate)}
                     onChange={value => setPlaybackRate(Number(value))}
                     options={[{ value: '0.5', label: '0.5×' }, { value: '0.75', label: '0.75×' }, { value: '1', label: '1×' }]}
                 />
-                <Button size="sm" variant={snap ? 'primary' : 'ghost'} aria-pressed={snap} onClick={() => setSnap(!snap)} title="吸附到起音点与播放头（按住 Alt 临时关闭）">吸附</Button>
-                <Button size="sm" variant={tap ? 'primary' : 'default'} disabled={!line} onClick={() => (tap ? finishTap(tap, true) : startTap())} title="边听边按空格，给每个字定开始时刻">
-                    <Timer size={12} /> {tap ? '结束打点' : '打点'}
+                <Button size="sm" variant={snap ? 'primary' : 'ghost'} aria-pressed={snap} onClick={() => setSnap(!snap)} title={t('lyrics.snapHint')}>{t('lyrics.snap')}</Button>
+                <Button size="sm" variant={tap ? 'primary' : 'default'} disabled={!line} onClick={() => (tap ? finishTap(tap, true) : startTap())} title={t('lyrics.tapHint')}>
+                    <Timer size={12} /> {tap ? t('lyrics.tapStop') : t('lyrics.tap')}
                 </Button>
                 <div className="mx-1 h-4 w-px bg-zinc-800" />
-                <Button size="sm" variant="ghost" disabled={!line || Boolean(tap)} onClick={() => apply(distribute(units, bounds, 'even'))}>均分</Button>
-                <Button size="sm" variant="ghost" disabled={!line || Boolean(tap)} onClick={() => apply(distribute(units, bounds, 'length'))}>按字数分配</Button>
-                <Button size="sm" variant="ghost" disabled={selectedUnit === null || Boolean(tap)} onClick={() => selectedUnit !== null && apply(splitUnit(units, bounds, selectedUnit))} title="把选中的一块拆成单字">
-                    <Scissors size={12} /> 拆成单字
+                <Button size="sm" variant="ghost" disabled={!line || Boolean(tap)} onClick={() => apply(distribute(units, bounds, 'even'))}>{t('lyrics.even')}</Button>
+                <Button size="sm" variant="ghost" disabled={!line || Boolean(tap)} onClick={() => apply(distribute(units, bounds, 'length'))}>{t('lyrics.byLength')}</Button>
+                <Button size="sm" variant="ghost" disabled={selectedUnit === null || Boolean(tap)} onClick={() => selectedUnit !== null && apply(splitUnit(units, bounds, selectedUnit))} title={t('lyrics.splitHint')}>
+                    <Scissors size={12} /> {t('lyrics.split')}
                 </Button>
-                <Button size="sm" variant="ghost" disabled={selectedUnit === null || selectedUnit >= units.length - 1 || Boolean(tap)} onClick={() => selectedUnit !== null && apply(mergeWithNext(units, bounds, selectedUnit))}>与下一个合并</Button>
+                <Button size="sm" variant="ghost" disabled={selectedUnit === null || selectedUnit >= units.length - 1 || Boolean(tap)} onClick={() => selectedUnit !== null && apply(mergeWithNext(units, bounds, selectedUnit))}>{t('lyrics.mergeNext')}</Button>
                 <div className="mx-1 h-4 w-px bg-zinc-800" />
                 <Button size="sm" variant="ghost" disabled={!edit || (edit.startTime === undefined && !edit.words) || Boolean(tap)} onClick={() => anchor && resetLineTiming(anchor)}>
-                    <Undo2 size={12} /> 恢复原始时间
+                    <Undo2 size={12} /> {t('inspector:line.resetTiming')}
                 </Button>
-                <Button size="sm" variant="ghost" disabled={edit?.text === undefined || Boolean(tap)} onClick={() => anchor && resetLineText(anchor)}>恢复原文</Button>
+                <Button size="sm" variant="ghost" disabled={edit?.text === undefined || Boolean(tap)} onClick={() => anchor && resetLineText(anchor)}>{t('inspector:line.resetText')}</Button>
             </div>
 
-            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1 text-[13px]" role="listbox" aria-label="歌词行">
+            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1 text-[13px]" role="listbox" aria-label={t('lyrics.lines')}>
                 {lines.map((item, i) => (
                     <div
                         key={i}
@@ -298,8 +303,8 @@ export function LyricsView() {
                         <span className="w-8 shrink-0 text-right text-[11px] text-zinc-600">{i + 1}</span>
                         <span className="w-20 shrink-0 font-mono text-[11px] text-zinc-500">{formatMs(item.startTime).slice(0, -2)}</span>
                         <LineText line={item} onCommit={text => setLineText(anchorOfLine(item, i), item, text)} />
-                        {modified.has(i) && <span title="改过" className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />}
-                        {staleSegments.has(i) && <span title="手动分词对不上改过的字"><AlertTriangle size={13} className="shrink-0 text-amber-400" /></span>}
+                        {modified.has(i) && <span title={t('lyrics.modified')} className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />}
+                        {staleSegments.has(i) && <span title={t('lyrics.staleSegmentation')}><AlertTriangle size={13} className="shrink-0 text-amber-400" /></span>}
                     </div>
                 ))}
             </div>
@@ -307,19 +312,19 @@ export function LyricsView() {
             {line && anchor && (
                 <div className="shrink-0 space-y-2 border-t border-zinc-800 px-3 py-2">
                     <div className="flex items-center gap-2 text-xs text-zinc-400">
-                        <span className="text-zinc-200">第 {index + 1} 行</span>
+                        <span className="text-zinc-200">{t('inspector:line.numbered', { n: index + 1 })}</span>
                         {selectedUnit !== null && units[selectedUnit] && (
                             <span data-testid="unit-readout">
-                                「{units[selectedUnit].text}」 开始 {formatMs(units[selectedUnit].startTime)} · 时长 {(units[selectedUnit].endTime - units[selectedUnit].startTime).toFixed(3)}s
+                                {t('lyrics.unitInfo', { text: units[selectedUnit].text, start: formatMs(units[selectedUnit].startTime), duration: (units[selectedUnit].endTime - units[selectedUnit].startTime).toFixed(3) })}
                             </span>
                         )}
                         <div className="flex-1" />
-                        <span className="text-zinc-600">←/→ 选字 · [ ] 挪 10ms（Shift 50ms）· Enter 听这个字 · 双击行改字</span>
+                        <span className="text-zinc-600">{t('lyrics.keysHint')}</span>
                     </div>
                     {tap && (
                         <div role="status" className="rounded border border-emerald-800/70 bg-emerald-950/40 px-3 py-1.5 text-xs text-emerald-100">
-                            打点中：每按一次空格定下一个字的开始（{Math.min(tap.taps.length, tap.units.length)} / {tap.units.length}），最后再按一下定结束。Esc 放弃。
-                            {tap.taps.length < tap.units.length && <span className="ml-2 font-medium">下一个：「{tap.units[tap.taps.length].text}」</span>}
+                            {t('lyrics.tapping', { done: Math.min(tap.taps.length, tap.units.length), count: tap.units.length })}
+                            {tap.taps.length < tap.units.length && <span className="ml-2 font-medium">{t('lyrics.tapNext', { text: tap.units[tap.taps.length].text })}</span>}
                         </div>
                     )}
                     <div ref={stripRef} tabIndex={0} onKeyDown={onStripKey} className="outline-none focus-visible:ring-1 focus-visible:ring-sky-600">

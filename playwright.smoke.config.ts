@@ -13,6 +13,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1280, height: 800 },
+    // 测试按中文界面的文字找元素；英文界面另有专门的测试（workbench.spec）。
+    locale: 'zh-CN',
     launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
   webServer: {

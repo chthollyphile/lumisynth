@@ -17,10 +17,9 @@ import type { OutputAspect } from '@/project/types';
 import { Button, Field, inputClass, Segmented, Slider, Toggle, cx } from './ui';
 import { useIsMobileLayout } from './mobile/uiMode';
 import { executeCommand } from './workbench/commands';
+import { useTranslation } from 'react-i18next';
+import { packLabel } from '@/i18n/catalog';
 
-/** 包在界面上的名字；包没装时显示 id。 */
-export const packLabel = (id: PackId) => findPack(id)?.label ?? id;
-export const packShortLabel = (id: PackId) => findPack(id)?.shortLabel ?? id;
 export const packColor = (id: PackId) => findPack(id)?.color ?? '#71717a';
 
 /**
@@ -91,16 +90,12 @@ const patchStructure = (patch: Partial<EngineParams['paragraph']>) => updateProj
     { coalesce: `params.paragraph.${Object.keys(patch).join(',')}` },
 );
 
-const THEME_COLORS: Array<[keyof Theme, string]> = [
-    ['backgroundColor', '背景'],
-    ['primaryColor', '主色'],
-    ['accentColor', '强调'],
-    ['secondaryColor', '次要'],
-];
+const THEME_COLORS = ['backgroundColor', 'primaryColor', 'accentColor', 'secondaryColor'] as const;
 
 function ThemeEditor() {
     const theme = useProjectStore(state => state.project.theme);
     const mobile = useIsMobileLayout();
+    const { t } = useTranslation('look');
     const current = theme.dual[theme.variant];
     const patchTheme = (patch: Partial<Theme>, key: string) => updateProject(p => ({
         ...p,
@@ -113,20 +108,20 @@ function ThemeEditor() {
                     <Segmented<'dark' | 'light'>
                         value={theme.variant}
                         onChange={variant => updateProject(p => ({ ...p, theme: { ...p.theme, variant } }))}
-                        options={[{ value: 'dark', label: '深色' }, { value: 'light', label: '浅色' }]}
+                        options={[{ value: 'dark', label: t('theme.dark') }, { value: 'light', label: t('theme.light') }]}
                     />
                 </div>
                 <Button
                     onClick={() => updateProject(p => ({ ...p, theme: { ...p.theme, source: 'custom', dual: randomTheme(p.theme.dual) } }))}
-                    aria-label="随机配色"
-                    title="随机抽一组配色（深色、浅色一起换；关键字颜色与图标保留）"
+                    aria-label={t('theme.random')}
+                    title={t('theme.randomHint')}
                 >
                     <Dices size={15} />
                 </Button>
             </div>
-            <div className="text-[11px] text-zinc-500">{current.name}{theme.source === 'ai' ? '（AI 生成）' : theme.source === 'custom' ? '（已自定义）' : ''}</div>
+            <div className="text-[11px] text-zinc-500">{current.name}{theme.source === 'ai' ? t('theme.sourceAi') : theme.source === 'custom' ? t('theme.sourceCustom') : ''}</div>
             <div className="grid grid-cols-4 gap-2">
-                {THEME_COLORS.map(([key, label]) => (
+                {THEME_COLORS.map(key => (
                     <label key={key} className="flex flex-col items-center gap-1 text-[11px] text-zinc-400">
                         <input
                             type="color"
@@ -134,20 +129,20 @@ function ThemeEditor() {
                             onChange={event => patchTheme({ [key]: event.target.value }, key)}
                             className="h-7 w-full cursor-pointer rounded border border-zinc-700 bg-transparent"
                         />
-                        {label}
+                        {t(`theme.colors.${key}`)}
                     </label>
                 ))}
             </div>
-            <Field label="动感">
+            <Field label={t('theme.intensity')}>
                 <Segmented<Theme['animationIntensity']>
                     value={current.animationIntensity}
                     onChange={animationIntensity => patchTheme({ animationIntensity }, 'animationIntensity')}
-                    options={[{ value: 'calm', label: '平静' }, { value: 'normal', label: '普通' }, { value: 'chaotic', label: '激烈' }]}
+                    options={[{ value: 'calm', label: t('theme.calm') }, { value: 'normal', label: t('theme.normal') }, { value: 'chaotic', label: t('theme.chaotic') }]}
                 />
             </Field>
             {!mobile && (
-                <Button className="w-full" onClick={() => executeCommand('view.themePark')} title="取色器、推荐色、名字与描述、关键字颜色、歌词图标、AI 生成（Ctrl+Shift+H）">
-                    <Palette size={14} /> 打开主题编辑器
+                <Button className="w-full" onClick={() => executeCommand('view.themePark')} title={t('theme.openEditorHint')}>
+                    <Palette size={14} /> {t('theme.openEditor')}
                 </Button>
             )}
         </>
@@ -159,11 +154,12 @@ export function StylePanel() {
     const { aspect, seed, tuning, engineParams } = project;
     const kernel = tuning.kernel;
     const theme = activeTheme(project);
+    const { t } = useTranslation('look');
 
     return (
         <>
-            <Group title="画面" defaultOpen>
-                <Field label="画幅">
+            <Group title={t('groups.frame')} defaultOpen>
+                <Field label={t('frame.aspect')}>
                     <Segmented<OutputAspect>
                         value={aspect}
                         onChange={value => updateProject(p => ({ ...p, aspect: value }))}
@@ -175,61 +171,61 @@ export function StylePanel() {
                         ]}
                     />
                 </Field>
-                <Field label="seed" hint="同样的歌词与 seed 总是编出同样的 PV。">
+                <Field label="seed" hint={t('frame.seedHint')}>
                     <div className="flex gap-1.5">
                         <input
                             value={seed}
                             onChange={event => updateProject(p => ({ ...p, seed: event.target.value }), { coalesce: 'seed' })}
                             className={inputClass}
                         />
-                        <Button onClick={() => updateProject(p => ({ ...p, seed: newId().slice(0, 8) }))} aria-label="换一个 seed">
+                        <Button onClick={() => updateProject(p => ({ ...p, seed: newId().slice(0, 8) }))} aria-label={t('frame.reseed')}>
                             <Dices size={15} />
                         </Button>
                     </div>
                 </Field>
             </Group>
 
-            <Group title="主题" defaultOpen>
+            <Group title={t('groups.theme')} defaultOpen>
                 <ThemeEditor />
             </Group>
 
-            <Group title="字体">
+            <Group title={t('groups.fonts')}>
                 <TypographySettings />
             </Group>
-            <Group title="背景与后处理">
-                <Field label="默认背景">
+            <Group title={t('groups.background')}>
+                <Field label={t('background.default')}>
                     <Segmented<KernelTuning['background']['mode']>
                         value={kernel.background.mode}
                         onChange={mode => patchKernel('background', { mode })}
-                        options={[{ value: 'theme', label: `主题色 ${theme.backgroundColor}` }, { value: 'cover', label: '封面' }]}
+                        options={[{ value: 'theme', label: t('background.theme', { color: theme.backgroundColor }) }, { value: 'cover', label: t('background.cover') }]}
                     />
                 </Field>
                 {kernel.background.mode === 'cover' && (
                     <>
-                        <Field label="封面模糊"><Slider value={kernel.background.coverBlur} min={0} max={60} step={1} onChange={v => patchKernel('background', { coverBlur: v })} /></Field>
-                        <Field label="封面压暗"><Slider value={kernel.background.coverDim} min={0} max={1} step={0.01} onChange={v => patchKernel('background', { coverDim: v })} format={v => v.toFixed(2)} /></Field>
+                        <Field label={t('background.coverBlur')}><Slider value={kernel.background.coverBlur} min={0} max={60} step={1} onChange={v => patchKernel('background', { coverBlur: v })} /></Field>
+                        <Field label={t('background.coverDim')}><Slider value={kernel.background.coverDim} min={0} max={1} step={0.01} onChange={v => patchKernel('background', { coverDim: v })} format={v => v.toFixed(2)} /></Field>
                     </>
                 )}
                 <BackgroundTrackList />
-                <Toggle label="后处理" checked={kernel.postProcess.enabled} onChange={enabled => patchKernel('postProcess', { enabled })} />
+                <Toggle label={t('background.postProcess')} checked={kernel.postProcess.enabled} onChange={enabled => patchKernel('postProcess', { enabled })} />
                 {kernel.postProcess.enabled && ([
-                    ['grain', '颗粒', 1], ['contrast', '对比', 1], ['rgbShift', 'RGB 错位', 1], ['halftone', '网点', 1],
-                    ['vignette', '暗角', 2], ['lensDistortion', '镜头畸变', 2], ['lensDispersion', '色散', 1],
-                ] as Array<[keyof KernelTuning['postProcess'], string, number]>).map(([key, label, max]) => (
-                    <Field key={key} label={label}>
+                    ['grain', 1], ['contrast', 1], ['rgbShift', 1], ['halftone', 1],
+                    ['vignette', 2], ['lensDistortion', 2], ['lensDispersion', 1],
+                ] as const).map(([key, max]) => (
+                    <Field key={key} label={t(`postProcess.${key}`)}>
                         <Slider value={kernel.postProcess[key] as number} min={0} max={max} step={0.01} onChange={v => patchKernel('postProcess', { [key]: v })} format={v => v.toFixed(2)} />
                     </Field>
                 ))}
             </Group>
 
-            <Group title="运动与转场">
-                <Toggle label="段落转场" checked={kernel.enableTransitions} onChange={enableTransitions => patchKernel('enableTransitions', enableTransitions)} />
-                <Field label="镜头强度（两包共用倍率）"><Slider value={kernel.motion.camera} min={0} max={2} step={0.01} onChange={v => patchKernel('motion', { camera: v })} format={v => `×${v.toFixed(2)}`} /></Field>
-                <Field label="文字运动（两包共用倍率）"><Slider value={kernel.motion.typography} min={0} max={2} step={0.01} onChange={v => patchKernel('motion', { typography: v })} format={v => `×${v.toFixed(2)}`} /></Field>
+            <Group title={t('groups.motion')}>
+                <Toggle label={t('motion.transitions')} checked={kernel.enableTransitions} onChange={enableTransitions => patchKernel('enableTransitions', enableTransitions)} />
+                <Field label={t('motion.camera')}><Slider value={kernel.motion.camera} min={0} max={2} step={0.01} onChange={v => patchKernel('motion', { camera: v })} format={v => `×${v.toFixed(2)}`} /></Field>
+                <Field label={t('motion.typography')}><Slider value={kernel.motion.typography} min={0} max={2} step={0.01} onChange={v => patchKernel('motion', { typography: v })} format={v => `×${v.toFixed(2)}`} /></Field>
             </Group>
 
             {listPacks().map(pack => (
-                <Group key={pack.id} title={pack.label}>
+                <Group key={pack.id} title={packLabel(pack.id)}>
                     {pack.SettingsPanel
                         ? (
                             <pack.SettingsPanel
@@ -239,17 +235,17 @@ export function StylePanel() {
                                 patchParams={(patch, key) => patchPackParams(pack.id, patch, key)}
                             />
                         )
-                        : <div className="text-xs text-zinc-500">这个风格包没有可调的设置。</div>}
+                        : <div className="text-xs text-zinc-500">{t('packNoSettings')}</div>}
                 </Group>
             ))}
 
-            <Group title="自动分段参数">
-                <Field label="段落最多行数"><Slider value={engineParams.paragraph.maxLines} min={2} max={12} step={1} onChange={v => patchStructure({ maxLines: v })} /></Field>
-                <Field label="段落最长秒数"><Slider value={engineParams.paragraph.maxDuration} min={6} max={40} step={1} onChange={v => patchStructure({ maxDuration: v })} /></Field>
-                <Field label="分段空隙倍数" hint="相邻行空隙中位数的多少倍算作段落边界。"><Slider value={engineParams.paragraph.gapMultiplier} min={1} max={5} step={0.1} onChange={v => patchStructure({ gapMultiplier: v })} format={v => v.toFixed(1)} /></Field>
-                <Toggle label="超长段落递归切分" checked={engineParams.paragraph.recursiveSplit} onChange={v => patchStructure({ recursiveSplit: v })} />
-                <div className="text-[11px] text-zinc-500">切镜头的参数在各风格包的分组里。</div>
-                <Button size="sm" variant="ghost" onClick={() => updateProject(p => ({ ...p, engineParams: DEFAULT_ENGINE_PARAMS }))}>全部恢复默认</Button>
+            <Group title={t('groups.structure')}>
+                <Field label={t('structure.maxLines')}><Slider value={engineParams.paragraph.maxLines} min={2} max={12} step={1} onChange={v => patchStructure({ maxLines: v })} /></Field>
+                <Field label={t('structure.maxDuration')}><Slider value={engineParams.paragraph.maxDuration} min={6} max={40} step={1} onChange={v => patchStructure({ maxDuration: v })} /></Field>
+                <Field label={t('structure.gapMultiplier')} hint={t('structure.gapMultiplierHint')}><Slider value={engineParams.paragraph.gapMultiplier} min={1} max={5} step={0.1} onChange={v => patchStructure({ gapMultiplier: v })} format={v => v.toFixed(1)} /></Field>
+                <Toggle label={t('structure.recursiveSplit')} checked={engineParams.paragraph.recursiveSplit} onChange={v => patchStructure({ recursiveSplit: v })} />
+                <div className="text-[11px] text-zinc-500">{t('structure.shotParamsHint')}</div>
+                <Button size="sm" variant="ghost" onClick={() => updateProject(p => ({ ...p, engineParams: DEFAULT_ENGINE_PARAMS }))}>{t('structure.resetAll')}</Button>
             </Group>
         </>
     );

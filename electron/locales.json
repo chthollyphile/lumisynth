@@ -1,0 +1,60 @@
+{
+  "zh": {
+    "menu": {
+      "about": "关于 lumisynth",
+      "checkUpdates": "检查更新…",
+      "hide": "隐藏 lumisynth",
+      "hideOthers": "隐藏其他",
+      "unhide": "全部显示",
+      "quit": "退出 lumisynth",
+      "edit": "编辑",
+      "view": "显示",
+      "fullscreen": "全屏",
+      "devTools": "开发者工具",
+      "window": "窗口"
+    },
+    "updates": {
+      "upToDate": "已是最新版本",
+      "githubStatus": "GitHub 返回 {{status}}",
+      "download": "前往下载",
+      "later": "稍后",
+      "released": "lumisynth {{version}} 已发布",
+      "releasedDetail": "当前版本 {{current}}。下载新版安装包覆盖安装即可，工程数据会保留。",
+      "restart": "立即重启",
+      "downloaded": "lumisynth {{version}} 已下载",
+      "downloadedDetail": "重启后完成安装；选「稍后」会在退出 lumisynth 时安装。",
+      "downloading": "正在下载 lumisynth {{version}}",
+      "downloadingDetail": "下载完成后会提示重启安装。",
+      "failed": "检查更新失败"
+    }
+  },
+  "en": {
+    "menu": {
+      "about": "About lumisynth",
+      "checkUpdates": "Check for Updates…",
+      "hide": "Hide lumisynth",
+      "hideOthers": "Hide Others",
+      "unhide": "Show All",
+      "quit": "Quit lumisynth",
+      "edit": "Edit",
+      "view": "View",
+      "fullscreen": "Toggle Full Screen",
+      "devTools": "Developer Tools",
+      "window": "Window"
+    },
+    "updates": {
+      "upToDate": "You're up to date",
+      "githubStatus": "GitHub returned {{status}}",
+      "download": "Download",
+      "later": "Later",
+      "released": "lumisynth {{version}} is available",
+      "releasedDetail": "You have {{current}}. Download the new installer and install over this version; your projects are kept.",
+      "restart": "Restart Now",
+      "downloaded": "lumisynth {{version}} has been downloaded",
+      "downloadedDetail": "Restart to finish installing; if you choose Later, it installs when you quit lumisynth.",
+      "downloading": "Downloading lumisynth {{version}}",
+      "downloadingDetail": "You'll be asked to restart once the download finishes.",
+      "failed": "Could not check for updates"
+    }
+  }
+}

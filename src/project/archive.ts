@@ -3,6 +3,7 @@
 import { strFromU8, strToU8, unzip, zip, type Unzipped } from 'fflate';
 import { normalizeProject } from './defaults';
 import type { AssetRef, LumiProject } from './types';
+import { t } from '@/i18n';
 
 export const LUMI_EXTENSION = 'lumi';
 const MANIFEST = 'project.json';
@@ -47,7 +48,7 @@ export const unpackProject = async (file: Blob): Promise<UnpackedProject> => {
         }, reject);
     });
     const manifest = entries[MANIFEST];
-    if (!manifest) throw new Error('不是 lumisynth 工程文件：缺少 project.json');
+    if (!manifest) throw new Error(t('project:notLumi'));
     const project = normalizeProject(JSON.parse(strFromU8(manifest)) as Partial<LumiProject>);
     const assets = projectAssetRefs(project).flatMap(ref => {
         const bytes = entries[`assets/${ref.id}`];

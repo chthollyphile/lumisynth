@@ -1,5 +1,7 @@
 // 风格包必须在任何工程数据创建之前注册。
 import './packs/builtin';
+// 界面语言要在任何组件渲染之前初始化。
+import './i18n';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'motion/react';

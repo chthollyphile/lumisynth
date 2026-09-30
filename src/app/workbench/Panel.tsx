@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { setLayout, showPanelView, useLayout, type PanelViewId } from './layout';
 import { fadeIn, indicatorSpring } from '../motion';
+import { useTranslation } from 'react-i18next';
 
 export interface PanelViewDefinition {
     id: PanelViewId;
@@ -16,6 +17,7 @@ export interface PanelViewDefinition {
 
 export function Panel({ views }: { views: PanelViewDefinition[] }) {
     const active = useLayout(state => state.activePanelView);
+    const { t } = useTranslation('workbench');
     const view = views.find(item => item.id === active) ?? views[0];
     return (
         <section className="flex min-h-0 flex-1 flex-col bg-zinc-950">
@@ -42,7 +44,7 @@ export function Panel({ views }: { views: PanelViewDefinition[] }) {
                 {view.actions?.()}
                 <button
                     type="button"
-                    aria-label="关闭面板"
+                    aria-label={t('panel.close')}
                     onClick={() => setLayout({ panelVisible: false })}
                     className="ml-1 rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
                 >

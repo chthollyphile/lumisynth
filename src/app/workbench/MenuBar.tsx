@@ -10,35 +10,43 @@ import { openCommandPalette, useLayout, type LayoutState } from './layout';
 import { expandMenuItems } from '../appCommands';
 import { LumiMark } from '../LumiMark';
 import { dropDown, popTransition } from '../motion';
+import { useTranslation } from 'react-i18next';
+import { t as translate } from '@/i18n';
 
 export interface MenuDefinition {
-    label: string;
-    /** 命令 id；'-' 为分隔线，'#文字' 为分组的小标题。 */
+    /** 显示时才取文字（跟着界面语言变）。 */
+    label: () => string;
+    /** 命令 id；'-' 为分隔线，'#键' 为分组的小标题（commands:groups 里的键）。 */
     items: string[];
 }
 
-const LAYOUT_TOGGLES: Array<{ command: string; key: keyof LayoutState; icon: LucideIcon; label: string }> = [
-    { command: 'workbench.toggleSideBar', key: 'sideBarVisible', icon: PanelLeft, label: '主侧栏' },
-    { command: 'workbench.togglePanel', key: 'panelVisible', icon: PanelBottom, label: '面板' },
-    { command: 'workbench.toggleAuxBar', key: 'auxBarVisible', icon: PanelRight, label: '辅助栏' },
+const LAYOUT_TOGGLES: Array<{ command: string; key: keyof LayoutState; icon: LucideIcon; label: 'sideBar' | 'panel' | 'auxBar' }> = [
+    { command: 'workbench.toggleSideBar', key: 'sideBarVisible', icon: PanelLeft, label: 'sideBar' },
+    { command: 'workbench.togglePanel', key: 'panelVisible', icon: PanelBottom, label: 'panel' },
+    { command: 'workbench.toggleAuxBar', key: 'auxBarVisible', icon: PanelRight, label: 'auxBar' },
 ];
+
+/** 菜单里分组小标题的文字。 */
+const groupLabel = (key: string) => translate(`commands:groups.${key}` as never) as string;
 
 /** VS Code 标题栏右侧的三个布局开关：亮 = 显示中。 */
 function LayoutToggles() {
     const layout = useLayout();
     const commands = useCommands(state => state.commands);
+    const { t } = useTranslation('workbench');
     return (
         <div className="mr-2 flex items-center gap-0.5">
             {LAYOUT_TOGGLES.map(({ command, key, icon: Icon, label }) => {
                 const visible = Boolean(layout[key]);
                 const binding = commands.get(command)?.keybinding;
-                const title = `${visible ? '隐藏' : '显示'}${label}${binding ? ` (${formatKeybinding(binding)})` : ''}`;
+                const name = t(`layoutToggles.${label}`);
+                const title = `${visible ? t('layoutToggles.hide', { name }) : t('layoutToggles.show', { name })}${binding ? ` (${formatKeybinding(binding)})` : ''}`;
                 return (
                     <button
                         key={command}
                         type="button"
                         title={title}
-                        aria-label={`切换${label}`}
+                        aria-label={t('layoutToggles.toggle', { name })}
                         aria-pressed={visible}
                         onClick={() => executeCommand(command)}
                         className={`flex h-6 w-7 items-center justify-center rounded ${visible ? 'text-zinc-200' : 'text-zinc-600'} hover:bg-zinc-800 hover:text-zinc-50`}
@@ -57,6 +65,7 @@ export function MenuBar({ menus }: { menus: MenuDefinition[] }) {
     const [switching, setSwitching] = useState(false);
     const commands = useCommands(state => state.commands);
     const name = useProjectStore(state => state.project.name);
+    const { t } = useTranslation('workbench');
 
     return (
         <header className="titlebar relative flex h-9 shrink-0 items-center border-b border-zinc-800 bg-zinc-900 text-[13px] select-none">
@@ -65,7 +74,7 @@ export function MenuBar({ menus }: { menus: MenuDefinition[] }) {
                 <span>lumi<span className="text-amber-400">synth</span></span>
             </span>
             {menus.map((menu, index) => (
-                <div key={menu.label} className="relative">
+                <div key={menu.items.join()} className="relative">
                     <button
                         type="button"
                         onClick={() => {
@@ -79,7 +88,7 @@ export function MenuBar({ menus }: { menus: MenuDefinition[] }) {
                         }}
                         className={`rounded px-2 py-1 ${open === index ? 'bg-zinc-700 text-zinc-50' : 'text-zinc-300 hover:bg-zinc-800'}`}
                     >
-                        {menu.label}
+                        {menu.label()}
                     </button>
                     {open === index && (
                         <motion.div
@@ -92,7 +101,7 @@ export function MenuBar({ menus }: { menus: MenuDefinition[] }) {
                             {expandMenuItems(menu.items).map((id, itemIndex) => {
                                 if (id === '-') return <div key={`sep-${itemIndex}`} className="my-1 h-px bg-zinc-800" />;
                                 if (id.startsWith('#')) {
-                                    return <div key={`head-${itemIndex}`} className="px-3 pt-1.5 pb-0.5 text-[11px] text-zinc-500">{id.slice(1)}</div>;
+                                    return <div key={`head-${itemIndex}`} className="px-3 pt-1.5 pb-0.5 text-[11px] text-zinc-500">{groupLabel(id.slice(1))}</div>;
                                 }
                                 const command = commands.get(id);
                                 if (!command) return null;
@@ -108,7 +117,7 @@ export function MenuBar({ menus }: { menus: MenuDefinition[] }) {
                                         }}
                                         className="flex w-full items-center justify-between gap-6 px-3 py-1 text-left whitespace-nowrap text-zinc-200 hover:bg-sky-900/50 disabled:opacity-40 disabled:hover:bg-transparent"
                                     >
-                                        <span>{command.title}</span>
+                                        <span>{command.title()}</span>
                                         {command.keybinding && (
                                             <span className="text-xs text-zinc-500">{formatKeybinding(command.keybinding)}</span>
                                         )}
@@ -132,10 +141,10 @@ export function MenuBar({ menus }: { menus: MenuDefinition[] }) {
             <button
                 type="button"
                 onClick={() => executeCommand('project.wizard')}
-                title="几步做出一支 PV：放歌曲、挑风格、选配色"
+                title={t('menuBar.wizardHint')}
                 className="mr-2 flex h-6 items-center gap-1.5 rounded-md px-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50"
             >
-                <Wand2 size={13} className="text-amber-400" /> 快速制作
+                <Wand2 size={13} className="text-amber-400" /> {t('menuBar.wizard')}
             </button>
             <LayoutToggles />
             <button
@@ -143,7 +152,7 @@ export function MenuBar({ menus }: { menus: MenuDefinition[] }) {
                 onClick={() => executeCommand('export.video')}
                 className="flex h-6 items-center gap-1.5 rounded-md bg-amber-400 px-2.5 text-xs font-medium text-zinc-950 hover:bg-amber-300"
             >
-                <Download size={12} /> 导出视频
+                <Download size={12} /> {t('menuBar.exportVideo')}
             </button>
         </header>
     );

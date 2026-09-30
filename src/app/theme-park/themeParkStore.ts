@@ -7,7 +7,7 @@ import { DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME } from '@/project/defaults';
 import { updateProject, useProjectStore } from '@/project/store';
 import { useLayout } from '../workbench/layout';
 import {
-    COLOR_FIELDS,
+    COLOR_KEYS,
     normalizeThemeDraft,
     patchDualThemeMode,
     patchDualThemeShared,
@@ -72,7 +72,7 @@ export const revertThemeDraft = () => {
 
 /** 恢复默认配色：只换四个颜色，名字、描述、关键字与图标保留。 */
 export const resetThemeDraftColors = () => patchDraft(draft => {
-    const colors = (theme: Theme) => Object.fromEntries(COLOR_FIELDS.map(field => [field.key, theme[field.key]])) as Partial<Theme>;
+    const colors = (theme: Theme) => Object.fromEntries(COLOR_KEYS.map(key => [key, theme[key]])) as Partial<Theme>;
     return { light: { ...draft.light, ...colors(DEFAULT_LIGHT_THEME) }, dark: { ...draft.dark, ...colors(DEFAULT_DARK_THEME) } };
 });
 

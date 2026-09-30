@@ -6,10 +6,12 @@ import { Upload } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { importDroppedFiles, isFileDrag } from '../dropImport';
 import { popTransition, presence } from '../motion';
+import { useTranslation } from 'react-i18next';
 
 export function DropOverlay() {
     const [active, setActive] = useState(false);
     const depth = useRef(0);
+    const { t } = useTranslation('workbench');
 
     useEffect(() => {
         const reset = () => {
@@ -75,10 +77,10 @@ export function DropOverlay() {
                             >
                                 <Upload size={15} className="text-amber-400" />
                             </motion.span>
-                            松开以导入
+                            {t('dropOverlay.title')}
                         </div>
-                        <div className="text-xs text-zinc-400">音频、歌词、图片 / 视频（进素材库）、字体、.lumi 工程</div>
-                        <div className="text-[11px] text-zinc-500">拖到左侧的音频 / 歌词 / 封面卡片上按那一项导入；拖到预览画面上直接放到播放头处</div>
+                        <div className="text-xs text-zinc-400">{t('dropOverlay.kinds')}</div>
+                        <div className="text-[11px] text-zinc-500">{t('dropOverlay.hint')}</div>
                     </motion.div>
                 </motion.div>
             )}

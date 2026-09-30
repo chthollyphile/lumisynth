@@ -6,6 +6,7 @@ import { clock, seek, setPreviewVolume, togglePlay, togglePreviewMute, usePlayba
 import { togglePreviewFullscreen } from './previewFullscreen';
 import { Button, rangeFill } from './ui';
 import { useLayout } from './workbench/layout';
+import { useTranslation } from 'react-i18next';
 
 export const formatTime = (seconds: number) => {
     if (!Number.isFinite(seconds)) return '0:00.0';
@@ -27,6 +28,7 @@ function VolumeControl() {
     const volume = useLayout(state => state.previewVolume);
     const muted = useLayout(state => state.previewMuted);
     const sliderRef = useRef<HTMLInputElement>(null);
+    const { t } = useTranslation('song');
     const silent = muted || volume === 0;
     const Icon = silent ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
@@ -46,7 +48,7 @@ function VolumeControl() {
 
     return (
         <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={togglePreviewMute} aria-label={silent ? '取消静音' : '静音'} title={`${silent ? '取消静音' : '静音'} (M)`}>
+            <Button variant="ghost" size="sm" onClick={togglePreviewMute} aria-label={silent ? t('transport.unmute') : t('transport.mute')} title={`${silent ? t('transport.unmute') : t('transport.mute')} (M)`}>
                 <Icon size={15} />
             </Button>
             <input
@@ -57,8 +59,8 @@ function VolumeControl() {
                 step={0.01}
                 value={silent ? 0 : volume}
                 onChange={event => setPreviewVolume(Number(event.target.value))}
-                aria-label="预览音量"
-                title={`预览音量 ${Math.round((silent ? 0 : volume) * 100)}%（只影响预览，不影响导出）`}
+                aria-label={t('transport.volume')}
+                title={t('transport.volumeHint', { percent: Math.round((silent ? 0 : volume) * 100) })}
                 style={rangeFill(silent ? 0 : volume, 0, 1)}
                 className="w-20"
             />
@@ -71,6 +73,7 @@ export function Transport() {
     const time = usePlayback(state => state.time);
     const duration = useProjectDuration();
     const sliderRef = useRef<HTMLInputElement>(null);
+    const { t } = useTranslation(['song', 'common']);
 
     // 滚轮在进度条上前后移动：每格 1 秒，按住 Shift 为 1 帧。原生监听器才能阻止页面滚动。
     useEffect(() => {
@@ -109,10 +112,10 @@ export function Transport() {
 
     return (
         <div className="flex h-11 shrink-0 items-center gap-3 border-t border-zinc-800 bg-zinc-900 px-3">
-            <Button variant="ghost" size="sm" onClick={() => seek(0)} aria-label="回到开头">
+            <Button variant="ghost" size="sm" onClick={() => seek(0)} aria-label={t('transport.toStart')}>
                 <SkipBack size={15} />
             </Button>
-            <Button variant="ghost" size="sm" onClick={togglePlay} aria-label={playing ? '暂停' : '播放'}>
+            <Button variant="ghost" size="sm" onClick={togglePlay} aria-label={playing ? t('common:pause') : t('common:play')}>
                 {playing ? <Pause size={16} /> : <Play size={16} />}
             </Button>
             <input
@@ -123,8 +126,8 @@ export function Transport() {
                 step={0.01}
                 value={Math.min(time, duration)}
                 onChange={event => seek(Number(event.target.value))}
-                aria-label="进度"
-                title="拖动或滚轮定位（Shift+滚轮逐帧）"
+                aria-label={t('transport.progress')}
+                title={t('transport.progressHint')}
                 style={rangeFill(Math.min(time, duration), 0, duration)}
                 className="min-w-0 flex-1"
             />
@@ -132,7 +135,7 @@ export function Transport() {
                 {formatTime(time)} / {formatTime(duration)}
             </span>
             <VolumeControl />
-            <Button variant="ghost" size="sm" onClick={togglePreviewFullscreen} aria-label="预览全屏" title="预览全屏 (F)">
+            <Button variant="ghost" size="sm" onClick={togglePreviewFullscreen} aria-label={t('transport.fullscreen')} title={`${t('transport.fullscreen')} (F)`}>
                 <Maximize2 size={15} />
             </Button>
         </div>

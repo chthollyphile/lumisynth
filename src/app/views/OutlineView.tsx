@@ -6,9 +6,11 @@ import { ChevronDown, ChevronRight, Clapperboard, Lock } from 'lucide-react';
 import type { LumiParagraph, LumiShot } from '@/compiler/types';
 import { getStyle } from '@/packs/registry';
 import { useSession } from '@/project/session';
-import { PARAGRAPH_KIND_LABELS, paragraphMenu, selectParagraph, selectShot, shotMenu, shotText, usePlayheadLocation } from '../arrangeActions';
+import { useTranslation } from 'react-i18next';
+import { packShortLabel, paragraphKindLabel } from '@/i18n/catalog';
+import { paragraphMenu, selectParagraph, selectShot, shotMenu, shotText, usePlayheadLocation } from '../arrangeActions';
 import { useProgram } from '../DerivedProvider';
-import { packColor, packShortLabel } from '../StylePanel';
+import { packColor } from '../StylePanel';
 import { formatTime } from '../Transport';
 import { cx } from '../ui';
 import { showContextMenu } from '../workbench/ContextMenu';
@@ -19,6 +21,7 @@ export function OutlineView() {
     const selection = useSession(state => state.selection);
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
     const list = useRef<HTMLDivElement>(null);
+    const { t } = useTranslation('arrange');
 
     const location = usePlayheadLocation(program);
     const playing = { paragraph: location.paragraphId, shot: location.shotId };
@@ -29,7 +32,7 @@ export function OutlineView() {
         list.current?.querySelector(`[data-outline-id="${CSS.escape(selectedId)}"]`)?.scrollIntoView({ block: 'nearest' });
     }, [selectedId]);
 
-    if (program.paragraphs.length === 0) return <div className="px-4 py-3 text-xs text-zinc-500">导入字幕或音频后，这里列出全曲的段落与镜头。</div>;
+    if (program.paragraphs.length === 0) return <div className="px-4 py-3 text-xs text-zinc-500">{t('outline.empty')}</div>;
 
     const toggle = (id: string) => setCollapsed(previous => {
         const next = new Set(previous);
@@ -54,16 +57,16 @@ export function OutlineView() {
                 }}
                 className={cx('flex h-6 cursor-pointer items-center gap-1 pr-2 pl-1 text-xs pointer-coarse:h-11 pointer-coarse:text-sm', selected ? 'bg-sky-900/50 text-zinc-50' : 'text-zinc-300 hover:bg-zinc-800/60')}
             >
-                <button type="button" aria-label={open ? '折叠' : '展开'} onClick={event => { event.stopPropagation(); toggle(paragraph.id); }} className="text-zinc-500">
+                <button type="button" aria-label={open ? t('outline.collapse') : t('outline.expand')} onClick={event => { event.stopPropagation(); toggle(paragraph.id); }} className="text-zinc-500">
                     {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
                 <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: packColor(paragraph.direction.pack) }} />
                 <span className={cx('truncate', playing.paragraph === paragraph.id && 'font-semibold text-zinc-50')}>
-                    {paragraph.index + 1}. {PARAGRAPH_KIND_LABELS[paragraph.kind]} · {packShortLabel(paragraph.direction.pack)}
+                    {paragraph.index + 1}. {paragraphKindLabel(paragraph.kind)} · {packShortLabel(paragraph.direction.pack)}
                 </span>
-                {paragraph.direction.source !== 'auto' && <span className="text-[10px] text-zinc-500">{paragraph.direction.source === 'ai' ? 'AI' : '手动'}</span>}
+                {paragraph.direction.source !== 'auto' && <span className="text-[10px] text-zinc-500">{paragraph.direction.source === 'ai' ? 'AI' : t('outline.manual')}</span>}
                 {(paragraph.boundary === 'manual' || paragraph.merged || paragraph.kindManual) && (
-                    <span className="text-[10px] text-amber-300/80" title={[paragraph.boundary === 'manual' && '手动分段', paragraph.merged && '含手动合并', paragraph.kindManual && '性质手动'].filter(Boolean).join('，')}>
+                    <span className="text-[10px] text-amber-300/80" title={[paragraph.boundary === 'manual' && t('outline.manualSplit'), paragraph.merged && t('outline.manualMerge'), paragraph.kindManual && t('outline.manualKind')].filter(Boolean).join(t('outline.separator'))}>
                         {paragraph.boundary === 'manual' ? '✂' : ''}{paragraph.merged ? '⧉' : ''}{paragraph.kindManual ? '✎' : ''}
                     </span>
                 )}
@@ -100,12 +103,12 @@ export function OutlineView() {
             <button
                 type="button"
                 onClick={() => executeCommand('view.storyboard')}
-                title="在编辑区展开成分镜：直接改分段、段落性质、风格包、能量与转场（Ctrl+Alt+O）"
+                title={t('outline.openStoryboardHint')}
                 className="mx-2 mt-1.5 flex w-[calc(100%-1rem)] items-center justify-center gap-1.5 rounded-md border border-zinc-700 py-1 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-50"
             >
-                <Clapperboard size={12} /> 展开为分镜
+                <Clapperboard size={12} /> {t('outline.openStoryboard')}
             </button>
-            <div ref={list} role="tree" aria-label="大纲" className="py-1">
+            <div ref={list} role="tree" aria-label={t('outline.label')} className="py-1">
                 {program.paragraphs.map(paragraph => (
                     <div key={paragraph.id}>
                         {paragraphRow(paragraph)}

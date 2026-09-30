@@ -7,6 +7,7 @@ import { pickParagraphKind } from '../arrangeActions';
 import { log } from '../output';
 import { StylePickerGrid } from './StylePickerGrid';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Heart, Lock, Ban, Unlock } from 'lucide-react';
 import { borrowableTypographies, familyLabel, findPack, getStyle, getTransition, listPacks } from '@/packs/registry';
 import { DEFAULT_MIX_BY_KIND, mixAssignment, mixOverrides, PARAGRAPH_KINDS, type LumiParagraph, type LumiShot, type PackId, type StyleId, type TransitionId } from '@/compiler/types';
@@ -25,18 +26,11 @@ import {
 import { repairLineSegmentation, resetLineText, resetLineTiming, resetLineTranslation, segmentationRepairFor, setLineBounds, setLineSegments, setLineTranslation } from '@/project/lyrics';
 import { setSession, useSession } from '@/project/session';
 import { updateProject, useProjectStore } from '@/project/store';
+import { packLabel, packShortLabel, paragraphKindLabel } from '@/i18n/catalog';
 import { useEffectiveLyrics, useProgram } from '../DerivedProvider';
 import { seek } from '../playback';
-import { packLabel, packShortLabel } from '../StylePanel';
 import { formatTime } from '../Transport';
 import { Button, cx, Field, inputClass, Section, Segmented, Slider, Toggle } from '../ui';
-
-const KIND_LABELS: Record<string, string> = {
-    breath: '换气', verse: '主歌', lift: '上扬', chorus: '副歌', break: '间奏', outro: '尾声',
-};
-const BOUNDARY_LABELS: Record<string, string> = {
-    'song-start': '曲首', 'time-gap': '时间空隙', 'lyric-gap': '歌词停顿', metadata: '段落标记', 'duration-cap': '时长上限', 'line-cap': '行数上限', manual: '手动分段',
-};
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
     return (
@@ -50,13 +44,14 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function StyleActions({ style }: { style: StyleId }) {
     const favorite = useProjectStore(state => state.project.library.favorites.includes(style));
     const blocked = useProjectStore(state => state.project.library.blocked.includes(style));
+    const { t } = useTranslation('inspector');
     return (
         <div className="flex gap-1.5">
             <Button size="sm" variant={favorite ? 'primary' : 'default'} onClick={() => toggleFavorite(style)}>
-                <Heart size={12} /> {favorite ? '已收藏' : '收藏'}
+                <Heart size={12} /> {favorite ? t('style.favorited') : t('style.favorite')}
             </Button>
             <Button size="sm" variant={blocked ? 'danger' : 'default'} onClick={() => toggleBlocked(style)}>
-                <Ban size={12} /> {blocked ? '已屏蔽' : '屏蔽'}
+                <Ban size={12} /> {blocked ? t('style.blocked') : t('style.block')}
             </Button>
         </div>
     );
@@ -64,6 +59,7 @@ function StyleActions({ style }: { style: StyleId }) {
 
 function ParagraphInspector({ paragraph }: { paragraph: LumiParagraph }) {
     const program = useProgram();
+    const { t } = useTranslation(['inspector', 'arrange', 'common']);
     const override = useProjectStore(state => state.project.paragraphDirections.find(item => (
         item.anchor.line.index === paragraph.anchor.line.index && item.anchor.line.hash === paragraph.anchor.line.hash
     )));
@@ -73,38 +69,40 @@ function ParagraphInspector({ paragraph }: { paragraph: LumiParagraph }) {
     const { direction } = paragraph;
     const families = findPack(direction.pack)?.families ?? [];
     const activeFamilies = direction.families?.filter(id => families.some(family => family.id === id)) ?? null;
+    const kind = paragraphKindLabel(paragraph.kind);
+    const boundary = t(`paragraph.boundaries.${paragraph.boundary}`);
 
     return (
         <>
-            <Section title="段落">
-                <Row label="性质">{KIND_LABELS[paragraph.kind]}{paragraph.kindManual ? '（手动）' : ''}</Row>
-                <Row label="时间">{formatTime(paragraph.startTime)} – {formatTime(paragraph.endTime)}</Row>
-                <Row label="分段原因">{BOUNDARY_LABELS[paragraph.boundary]}{paragraph.merged ? '，含手动合并' : ''}</Row>
-                <Row label="shot 数">{paragraph.shots.length}</Row>
+            <Section title={t('paragraph.title')}>
+                <Row label={t('paragraph.kind')}>{paragraph.kindManual ? t('paragraph.manualValue', { value: kind }) : kind}</Row>
+                <Row label={t('paragraph.time')}>{formatTime(paragraph.startTime)} – {formatTime(paragraph.endTime)}</Row>
+                <Row label={t('paragraph.boundary')}>{paragraph.merged ? t('paragraph.boundaryMerged', { boundary }) : boundary}</Row>
+                <Row label={t('paragraph.shots')}>{paragraph.shots.length}</Row>
                 <div className="flex flex-wrap gap-1.5">
-                    <Button size="sm" onClick={() => seek(paragraph.startTime)}>跳到段首</Button>
-                    <Button size="sm" onClick={() => void pickParagraphKind(paragraph)}>改性质…</Button>
-                    <Button size="sm" disabled={paragraph.index === 0} onClick={() => mergeWithPrevious(program, paragraph, message => log(message))}>与上一段合并</Button>
+                    <Button size="sm" onClick={() => seek(paragraph.startTime)}>{t('paragraph.jumpToStart')}</Button>
+                    <Button size="sm" onClick={() => void pickParagraphKind(paragraph)}>{t('paragraph.changeKind')}</Button>
+                    <Button size="sm" disabled={paragraph.index === 0} onClick={() => mergeWithPrevious(program, paragraph, message => log(message))}>{t('arrange:menu.mergePrevious')}</Button>
                     {(paragraph.boundary === 'manual' || paragraph.merged) && (
-                        <Button size="sm" variant="ghost" onClick={() => resetParagraphStructure(program, paragraph, message => log(message))}>恢复自动分段</Button>
+                        <Button size="sm" variant="ghost" onClick={() => resetParagraphStructure(program, paragraph, message => log(message))}>{t('arrange:menu.resetStructure')}</Button>
                     )}
                 </div>
-                <div className="text-[11px] text-zinc-500">要在某一行拆开：在时间轴的歌词块上右键，或拖动段落轨上两段之间的边界。</div>
+                <div className="text-[11px] text-zinc-500">{t('paragraph.splitHint')}</div>
             </Section>
-            <Section title="编排（Direction）">
-                <Field label="风格包">
+            <Section title={t('paragraph.direction')}>
+                <Field label={t('paragraph.pack')}>
                     <Segmented<'auto' | PackId>
                         value={override?.pack ?? 'auto'}
                         onChange={value => setParagraphDirection(paragraph, { pack: value })}
                         options={[
-                            { value: 'auto', label: '自动' },
-                            ...listPacks().map(pack => ({ value: pack.id, label: pack.shortLabel })),
+                            { value: 'auto', label: t('common:auto') },
+                            ...listPacks().map(pack => ({ value: pack.id, label: packShortLabel(pack.id) })),
                         ]}
                     />
                 </Field>
-                <Field label="能量" hint="自动时由包按段落性质与字数决定；手动时决定候选构图的安静 / 喧哗。">
+                <Field label={t('arrange:storyboard.energy')} hint={t('paragraph.energyHint')}>
                     <Toggle
-                        label="手动指定"
+                        label={t('paragraph.manual')}
                         checked={direction.energy !== null}
                         onChange={checked => setParagraphDirection(paragraph, { energy: checked ? 0.5 : 'auto' })}
                     />
@@ -117,7 +115,7 @@ function ParagraphInspector({ paragraph }: { paragraph: LumiParagraph }) {
                         />
                     )}
                 </Field>
-                <Field label="允许的构图族" hint="不选即不限。">
+                <Field label={t('paragraph.families')} hint={t('paragraph.familiesHint')}>
                     <div className="flex flex-wrap gap-1">
                         {families.map(family => {
                             const on = activeFamilies?.includes(family.id) ?? false;
@@ -138,25 +136,25 @@ function ParagraphInspector({ paragraph }: { paragraph: LumiParagraph }) {
                         })}
                     </div>
                 </Field>
-                {override && <Button size="sm" variant="ghost" onClick={() => setParagraphDirection(paragraph, { pack: 'auto', energy: 'auto', families: 'auto' })}>全部恢复自动</Button>}
+                {override && <Button size="sm" variant="ghost" onClick={() => setParagraphDirection(paragraph, { pack: 'auto', energy: 'auto', families: 'auto' })}>{t('paragraph.resetAll')}</Button>}
             </Section>
-            <Section title="出场转场">
+            <Section title={t('arrange:storyboard.transition')}>
                 <select
                     value={transitionOp?.type === 'transition' ? transitionOp.transition : 'auto'}
                     onChange={event => setParagraphTransition(paragraph, event.target.value as TransitionId | 'none' | 'auto')}
                     className={inputClass}
                 >
-                    <option value="auto">自动{paragraph.transitionOut && transitionOp === undefined ? `（${getTransition(paragraph.transitionOut.id)?.label}）` : ''}</option>
-                    <option value="none">无转场</option>
+                    <option value="auto">{paragraph.transitionOut && transitionOp === undefined ? t('common:autoValue', { value: getTransition(paragraph.transitionOut.id)?.label }) : t('common:auto')}</option>
+                    <option value="none">{t('arrange:pick.noTransition')}</option>
                     {listPacks().map(pack => (
-                        <optgroup key={pack.id} label={pack.label}>
+                        <optgroup key={pack.id} label={packLabel(pack.id)}>
                             {pack.transitions.map(item => (
                                 <option key={item.id} value={item.id}>{item.label}</option>
                             ))}
                         </optgroup>
                     ))}
                 </select>
-                {!paragraph.transitionOut && transitionOp === undefined && <div className="text-xs text-zinc-500">最后一段没有出场转场。</div>}
+                {!paragraph.transitionOut && transitionOp === undefined && <div className="text-xs text-zinc-500">{t('paragraph.lastNoTransition')}</div>}
             </Section>
         </>
     );
@@ -164,6 +162,7 @@ function ParagraphInspector({ paragraph }: { paragraph: LumiParagraph }) {
 
 function ShotInspector({ shot, paragraph }: { shot: LumiShot; paragraph: LumiParagraph }) {
     const program = useProgram();
+    const { t } = useTranslation(['inspector', 'arrange', 'common']);
     const shotMixing = useProjectStore(state => state.project.direction.shotMixing);
     const style = getStyle(shot.style);
     const [pickPack, setPickPack] = useState<PackId>(shot.pack);
@@ -173,25 +172,25 @@ function ShotInspector({ shot, paragraph }: { shot: LumiShot; paragraph: LumiPar
     const text = shot.lineIndices.map(index => program.lines[index]?.line.fullText).filter(Boolean).join(' / ');
     return (
         <>
-            <Section title="镜头">
-                <Row label="风格">{style ? `${familyLabel(style.pack, style.family)} · ${style.kind}` : shot.style}</Row>
+            <Section title={t('shot.title')}>
+                <Row label={t('shot.style')}>{style ? `${familyLabel(style.pack, style.family)} · ${style.kind}` : shot.style}</Row>
                 <Row label="mood">{style?.mood}</Row>
-                <Row label="时间">{formatTime(shot.startTime)} – {formatTime(shot.endTime)}</Row>
-                <Row label="所在段落">{KIND_LABELS[paragraph.kind]}（{packShortLabel(paragraph.direction.pack)}）</Row>
-                {shot.isBridge ? <div className="text-xs text-zinc-500">间奏 bridge：无歌词，只有构图。</div> : <div className="text-xs text-zinc-400">{text}</div>}
+                <Row label={t('paragraph.time')}>{formatTime(shot.startTime)} – {formatTime(shot.endTime)}</Row>
+                <Row label={t('shot.paragraph')}>{t('shot.paragraphValue', { kind: paragraphKindLabel(paragraph.kind), pack: packShortLabel(paragraph.direction.pack) })}</Row>
+                {shot.isBridge ? <div className="text-xs text-zinc-500">{t('shot.bridge')}</div> : <div className="text-xs text-zinc-400">{text}</div>}
                 <div className="flex flex-wrap gap-1.5">
                     {shot.locked ? (
-                        <Button size="sm" onClick={() => unlockShotStyle(shot)}><Unlock size={12} /> 解除锁定</Button>
+                        <Button size="sm" onClick={() => unlockShotStyle(shot)}><Unlock size={12} /> {t('shot.unlock')}</Button>
                     ) : (
-                        <Button size="sm" onClick={() => lockCurrentStyle(shot)}><Lock size={12} /> 锁定当前风格</Button>
+                        <Button size="sm" onClick={() => lockCurrentStyle(shot)}><Lock size={12} /> {t('arrange:menu.lockStyle')}</Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => seek(shot.startTime)}>跳到这里</Button>
+                    <Button size="sm" variant="ghost" onClick={() => seek(shot.startTime)}>{t('arrange:menu.jumpHere')}</Button>
                 </div>
                 {style && <StyleActions style={style.id} />}
             </Section>
             {(findPack(shot.pack)?.componentSlots?.length ?? 0) > 0 && (
-                <Section title="组件（构图 × 排版 × 点缀）">
-                    <div className="text-[11px] text-zinc-500">构图就是风格本身；排版与点缀可以单独替换，只影响这一个镜头。</div>
+                <Section title={t('shot.components')}>
+                    <div className="text-[11px] text-zinc-500">{t('shot.componentsHint')}</div>
                     {findPack(shot.pack)!.componentSlots!.map(slotDef => {
                         const locked = shot.lockedComponents.includes(slotDef.id);
                         const borrowable = slotDef.id === 'typography' && !shot.isBridge && style
@@ -208,12 +207,12 @@ function ShotInspector({ shot, paragraph }: { shot: LumiShot; paragraph: LumiPar
                                     onChange={event => setShotComponent(shot, slotDef.id, event.target.value)}
                                     className={inputClass}
                                 >
-                                    <option value="auto">自动（{currentLabel}）</option>
+                                    <option value="auto">{t('common:autoValue', { value: currentLabel })}</option>
                                     <optgroup label={packShortLabel(shot.pack)}>
                                         {slotDef.options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                                     </optgroup>
                                     {borrowable.length > 0 && (
-                                        <optgroup label="借用其他包的排版">
+                                        <optgroup label={t('shot.borrowTypography')}>
                                             {borrowable.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                                         </optgroup>
                                     )}
@@ -223,12 +222,12 @@ function ShotInspector({ shot, paragraph }: { shot: LumiShot; paragraph: LumiPar
                     })}
                     {shot.borrowedText && (
                         <div className="text-[11px] text-zinc-500">
-                            字由{packShortLabel(shot.borrowedText.pack)}排在本构图的文字区域里（预览上的虚线框），构图与点缀仍是{packShortLabel(shot.pack)}的。
+                            {t('shot.borrowedHint', { text: packShortLabel(shot.borrowedText.pack), host: packShortLabel(shot.pack) })}
                         </div>
                     )}
                 </Section>
             )}
-            <Section title="换成…">
+            <Section title={t('shot.replace')}>
                 {shotMixing && (
                     <Segmented<PackId>
                         value={pickPack}
@@ -236,16 +235,16 @@ function ShotInspector({ shot, paragraph }: { shot: LumiShot; paragraph: LumiPar
                             setPickPack(value);
                             setFamily('');
                         }}
-                        options={listPacks().map(item => ({ value: item.id, label: item.shortLabel }))}
+                        options={listPacks().map(item => ({ value: item.id, label: packShortLabel(item.id) }))}
                     />
                 )}
                 <select value={family} onChange={event => setFamily(event.target.value)} className={inputClass}>
-                    <option value="">全部族</option>
+                    <option value="">{t('shot.allFamilies')}</option>
                     {(findPack(pack)?.families ?? []).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
                 <StylePickerGrid shot={shot} styles={styles} />
                 <div className="text-[11px] text-zinc-500">
-                    鼠标停在缩略图上可以在预览里试看，点击才替换；也可以用方向键 + 回车。{shotMixing ? '换成另一个包的风格时，这一格由那个包来画，镜头边界不变。' : '跨包换风格需要在检查器的编排设置里开启「按 shot 混用」。'}
+                    {t('shot.pickerHint')}{shotMixing ? t('shot.pickerMixing') : t('shot.pickerNoMixing')}
                 </div>
             </Section>
         </>
@@ -254,6 +253,7 @@ function ShotInspector({ shot, paragraph }: { shot: LumiShot; paragraph: LumiPar
 
 function LineInspector({ index }: { index: number }) {
     const program = useProgram();
+    const { t } = useTranslation(['inspector', 'arrange', 'common', 'problems']);
     const edit = useProjectStore(state => state.project.lyricEdits.lines.find(item => item.anchor.index === index));
     const hasTiming = Boolean(edit && (edit.startTime !== undefined || edit.endTime !== undefined || edit.words));
     const line = program.lines[index]?.line;
@@ -273,19 +273,19 @@ function LineInspector({ index }: { index: number }) {
     const current = useMemo(() => (line ? segmentLyricWords(line).map((part, i, parts) => (
         line.fullText.slice(part.index, parts[i + 1]?.index ?? line.fullText.length)
     )) : []), [line]);
-    if (!line) return <Section title="歌词行"><div className="text-xs text-zinc-500">这一行已不存在。</div></Section>;
+    if (!line) return <Section title={t('line.title')}><div className="text-xs text-zinc-500">{t('line.missing')}</div></Section>;
     const anchor = anchorOfLine(line, index);
     const draftText = draft ?? current.join('|');
     const parts = draftText.split('|');
     const valid = isValidWordSegmentation(line.fullText, parts);
     return (
         <>
-            <Section title={`第 ${index + 1} 行`}>
+            <Section title={t('line.numbered', { n: index + 1 })}>
                 <div data-selectable className="text-sm text-zinc-100">{line.fullText}</div>
-                <Field label="译文" hint="字幕里显示的译文；清空就不显示这一行的译文。">
+                <Field label={t('line.translation')} hint={t('line.translationHint')}>
                     <input
                         value={translationDraft ?? line.translation ?? ''}
-                        placeholder="（没有译文）"
+                        placeholder={t('line.noTranslation')}
                         onChange={event => setTranslationDraft(event.target.value)}
                         onBlur={() => {
                             if (translationDraft !== null && !discardTranslation.current) setLineTranslation(anchor, translationDraft, originalTranslation);
@@ -300,14 +300,14 @@ function LineInspector({ index }: { index: number }) {
                     />
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
-                    <Field label="开始（秒）">
+                    <Field label={t('common:startSeconds')}>
                         <input
                             type="number" step={0.01} value={Number(line.startTime.toFixed(3))}
                             onChange={event => setLineBounds(anchor, line, { startTime: Number(event.target.value) })}
                             className={inputClass}
                         />
                     </Field>
-                    <Field label="结束（秒）">
+                    <Field label={t('common:endSeconds')}>
                         <input
                             type="number" step={0.01} value={Number(line.endTime.toFixed(3))}
                             onChange={event => setLineBounds(anchor, line, { endTime: Number(event.target.value) })}
@@ -316,25 +316,25 @@ function LineInspector({ index }: { index: number }) {
                     </Field>
                 </div>
                 <div className="flex gap-1.5">
-                    <Button size="sm" onClick={() => seek(line.startTime)}>跳到这里</Button>
-                    {hasTiming && <Button size="sm" variant="ghost" onClick={() => resetLineTiming(anchor)}>恢复原始时间</Button>}
-                    {edit?.text !== undefined && <Button size="sm" variant="ghost" onClick={() => resetLineText(anchor)}>恢复原文</Button>}
-                    {edit?.translation !== undefined && <Button size="sm" variant="ghost" onClick={() => resetLineTranslation(anchor)}>恢复译文</Button>}
+                    <Button size="sm" onClick={() => seek(line.startTime)}>{t('arrange:menu.jumpHere')}</Button>
+                    {hasTiming && <Button size="sm" variant="ghost" onClick={() => resetLineTiming(anchor)}>{t('line.resetTiming')}</Button>}
+                    {edit?.text !== undefined && <Button size="sm" variant="ghost" onClick={() => resetLineText(anchor)}>{t('line.resetText')}</Button>}
+                    {edit?.translation !== undefined && <Button size="sm" variant="ghost" onClick={() => resetLineTranslation(anchor)}>{t('line.resetTranslation')}</Button>}
                 </div>
             </Section>
-            <Section title="分词">
+            <Section title={t('line.segmentation')}>
                 {repair && (
                     <div role="alert" className="space-y-1.5 rounded border border-amber-800/70 bg-amber-950/40 px-2 py-1.5 text-xs text-amber-100">
-                        <div>改字之后，这一行的手动分词对不上新文字了（现在先用自动分词）。</div>
-                        <div className="text-zinc-300">原来：<span className="font-mono">{savedParts?.join('|')}</span></div>
-                        <div className="text-zinc-300">修复后：<span className="font-mono">{repair.join('|')}</span></div>
+                        <div>{t('line.staleSegmentation')}</div>
+                        <div className="text-zinc-300">{t('line.before')}<span className="font-mono">{savedParts?.join('|')}</span></div>
+                        <div className="text-zinc-300">{t('line.after')}<span className="font-mono">{repair.join('|')}</span></div>
                         <div className="flex gap-1.5">
-                            <Button size="sm" variant="primary" onClick={() => { repairLineSegmentation(anchor, line); setDraft(null); }}>自动修复</Button>
-                            <Button size="sm" onClick={() => setDraft(repair.join('|'))}>手动修改</Button>
+                            <Button size="sm" variant="primary" onClick={() => { repairLineSegmentation(anchor, line); setDraft(null); }}>{t('problems:autoRepair')}</Button>
+                            <Button size="sm" onClick={() => setDraft(repair.join('|'))}>{t('problems:editManually')}</Button>
                         </div>
                     </div>
                 )}
-                <Field label="用 | 分隔词" hint={valid ? '分词只影响字号层级与镜头，不改变文字。' : '拼起来必须与原文完全一致。'}>
+                <Field label={t('line.segmentsLabel')} hint={valid ? t('line.segmentsHint') : t('line.segmentsInvalid')}>
                     <input
                         value={draftText}
                         onChange={event => setDraft(event.target.value)}
@@ -347,14 +347,14 @@ function LineInspector({ index }: { index: number }) {
                         setDraft(null);
                     }}
                     >
-                        应用
+                        {t('line.apply')}
                     </Button>
                     {line.wordSegments && <Button size="sm" variant="ghost" onClick={() => {
                         setLineSegments(anchor, null);
                         setDraft(null);
                     }}
                     >
-                        恢复自动分词
+                        {t('problems:useAutoSegmentation')}
                     </Button>}
                 </div>
             </Section>
@@ -367,33 +367,34 @@ function ProjectInspector() {
     const mix = mixAssignment(direction);
     const subtitles = useProjectStore(state => state.project.tuning.kernel.subtitles);
     const program = useProgram();
+    const { t } = useTranslation(['inspector', 'arrange']);
     const lockedCount = program.paragraphs.reduce((sum, p) => sum + p.shots.filter(s => s.locked).length, 0);
     return (
         <>
-            <Section title="编排">
-                <Field label="模式">
+            <Section title={t('project.arrangement')}>
+                <Field label={t('project.mode')}>
                     <Segmented<'single' | 'mix'>
                         value={direction.mode}
                         onChange={mode => updateProject(p => ({ ...p, direction: { ...p.direction, mode } }))}
-                        options={[{ value: 'single', label: '全曲一个包' }, { value: 'mix', label: '按段落混用' }]}
+                        options={[{ value: 'single', label: t('project.single') }, { value: 'mix', label: t('project.mix') }]}
                     />
                 </Field>
                 {direction.mode === 'single' ? (
-                    <Field label="风格包">
+                    <Field label={t('paragraph.pack')}>
                         <select
                             value={direction.pack}
                             onChange={event => updateProject(p => ({ ...p, direction: { ...p.direction, pack: event.target.value } }))}
                             className={inputClass}
                         >
-                            {listPacks().map(pack => <option key={pack.id} value={pack.id}>{pack.label}</option>)}
+                            {listPacks().map(pack => <option key={pack.id} value={pack.id}>{packLabel(pack.id)}</option>)}
                         </select>
                     </Field>
                 ) : (
-                    <Field label="每种段落用哪个包" hint="检查器里单独指定过的段落不受影响。">
+                    <Field label={t('project.mixByKind')} hint={t('project.mixByKindHint')}>
                         <div className="space-y-1">
                             {PARAGRAPH_KINDS.map(kind => (
                                 <label key={kind} className="flex items-center justify-between gap-2 text-xs text-zinc-400">
-                                    <span className="w-8 shrink-0 whitespace-nowrap">{KIND_LABELS[kind]}</span>
+                                    <span className="w-14 shrink-0 whitespace-nowrap">{paragraphKindLabel(kind)}</span>
                                     <select
                                         value={mix[kind]}
                                         onChange={event => updateProject(p => ({
@@ -402,39 +403,39 @@ function ProjectInspector() {
                                         }))}
                                         className={cx(inputClass, 'h-7 min-w-0 flex-1')}
                                     >
-                                        {listPacks().map(pack => <option key={pack.id} value={pack.id}>{pack.label}</option>)}
+                                        {listPacks().map(pack => <option key={pack.id} value={pack.id}>{packLabel(pack.id)}</option>)}
                                         {!findPack(mix[kind]) && (
-                                            <option value={mix[kind]}>{packLabel(mix[kind])}（未安装）</option>
+                                            <option value={mix[kind]}>{t('project.notInstalled', { pack: packLabel(mix[kind]) })}</option>
                                         )}
                                     </select>
                                 </label>
                             ))}
                             {PARAGRAPH_KINDS.some(kind => mix[kind] !== DEFAULT_MIX_BY_KIND[kind]) && (
                                 <Button size="sm" variant="ghost" onClick={() => updateProject(p => ({ ...p, direction: { ...p.direction, mixByKind: {} } }))}>
-                                    恢复默认分配
+                                    {t('project.resetMix')}
                                 </Button>
                             )}
                         </div>
                     </Field>
                 )}
                 <Toggle
-                    label="段内按镜头混用不同的包"
+                    label={t('project.shotMixing')}
                     checked={direction.shotMixing}
                     onChange={shotMixing => updateProject(p => ({ ...p, direction: { ...p.direction, shotMixing } }))}
                 />
-                <Row label="段落 / shot">{program.paragraphs.length} / {program.paragraphs.reduce((sum, p) => sum + p.shots.length, 0)}</Row>
-                <Row label="锁定的 shot">{lockedCount}</Row>
+                <Row label={t('project.counts')}>{program.paragraphs.length} / {program.paragraphs.reduce((sum, p) => sum + p.shots.length, 0)}</Row>
+                <Row label={t('project.locked')}>{lockedCount}</Row>
             </Section>
-            <Section title="字幕">
-                <Field label="画面底部的第二行">
+            <Section title={t('project.subtitles')}>
+                <Field label={t('project.subtitleLine')}>
                     <Segmented<'translation' | 'romanization' | 'none'>
                         value={subtitles.mode}
                         onChange={mode => updateProject(p => ({ ...p, tuning: { ...p.tuning, kernel: { ...p.tuning.kernel, subtitles: { ...p.tuning.kernel.subtitles, mode } } } }))}
-                        options={[{ value: 'translation', label: '译文' }, { value: 'romanization', label: '罗马音' }, { value: 'none', label: '不显示' }]}
+                        options={[{ value: 'translation', label: t('project.subtitleTranslation') }, { value: 'romanization', label: t('project.subtitleRomanization') }, { value: 'none', label: t('project.subtitleNone') }]}
                     />
                 </Field>
             </Section>
-            <div className="px-4 py-3 text-xs text-zinc-500">在时间轴上点选段落、镜头或歌词行来编辑它们。</div>
+            <div className="px-4 py-3 text-xs text-zinc-500">{t('project.hint')}</div>
         </>
     );
 }
@@ -442,6 +443,7 @@ function ProjectInspector() {
 export function Inspector() {
     const selection = useSession(state => state.selection);
     const program = useProgram();
+    const { t } = useTranslation(['inspector', 'common']);
     if (selection.type === 'paragraph' || selection.type === 'shot') {
         const paragraph = program.paragraphs.find(item => item.id === selection.paragraphId);
         if (paragraph && selection.type === 'paragraph') return <ParagraphInspector key={paragraph.id} paragraph={paragraph} />;
@@ -450,8 +452,8 @@ export function Inspector() {
         if (paragraph && shot) return <ShotInspector key={shot.id} shot={shot} paragraph={paragraph} />;
         return (
             <div className="space-y-2 px-4 py-3 text-xs text-zinc-500">
-                选中的对象在重新编排后已不存在。
-                <Button size="sm" onClick={() => setSession({ selection: { type: 'none' } })}>取消选择</Button>
+                {t('selectionGone')}
+                <Button size="sm" onClick={() => setSession({ selection: { type: 'none' } })}>{t('common:clearSelection')}</Button>
             </div>
         );
     }

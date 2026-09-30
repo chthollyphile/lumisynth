@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { executeCommand } from './commands';
 import { toggleSideView, useLayout, type SideViewId } from './layout';
 import { indicatorSpring } from '../motion';
+import { useTranslation } from 'react-i18next';
 
 export interface SideViewDefinition {
     id: SideViewId;
@@ -15,6 +16,7 @@ export interface SideViewDefinition {
 export function ActivityBar({ views }: { views: SideViewDefinition[] }) {
     const active = useLayout(state => state.activeSideView);
     const visible = useLayout(state => state.sideBarVisible);
+    const { t } = useTranslation('workbench');
     return (
         <nav className="flex w-12 shrink-0 flex-col items-center border-r border-zinc-800 bg-zinc-900 py-1">
             {views.map(view => {
@@ -38,8 +40,8 @@ export function ActivityBar({ views }: { views: SideViewDefinition[] }) {
             <div className="flex-1" />
             <button
                 type="button"
-                title="命令面板"
-                aria-label="命令面板"
+                title={t('activityBar.commandPalette')}
+                aria-label={t('activityBar.commandPalette')}
                 onClick={() => executeCommand('workbench.commandPalette')}
                 className="flex h-12 w-12 items-center justify-center text-zinc-500 hover:text-zinc-200"
             >

@@ -14,16 +14,23 @@ import { useProgram } from '../DerivedProvider';
 import { StyleThumb, useThumbnailLook } from '../library/StyleThumb';
 import { log } from '../output';
 import { Button, cx } from '../ui';
+import { useTranslation } from 'react-i18next';
+import { packDescription, packLabel, packShortLabel } from '@/i18n/catalog';
 
-const ASPECTS: Array<{ value: OutputAspect; label: string; hint: string; box: string }> = [
-    { value: '16:9', label: '横屏 16:9', hint: 'B 站 / YouTube', box: 'h-4 w-7' },
-    { value: '9:16', label: '竖屏 9:16', hint: '抖音 / 小红书', box: 'h-7 w-4' },
-    { value: '1:1', label: '方形 1:1', hint: '动态封面', box: 'h-5 w-5' },
-    { value: '4:3', label: '4:3', hint: '复古屏幕', box: 'h-5 w-6' },
+const ASPECTS: Array<{ value: OutputAspect; key: 'landscape' | 'portrait' | 'square' | 'classic'; box: string }> = [
+    { value: '16:9', key: 'landscape', box: 'h-4 w-7' },
+    { value: '9:16', key: 'portrait', box: 'h-7 w-4' },
+    { value: '1:1', key: 'square', box: 'h-5 w-5' },
+    { value: '4:3', key: 'classic', box: 'h-5 w-6' },
 ];
 
-/** 描述里的第一句（卡片上放不下整段）。 */
-const firstSentence = (text: string) => text.split(/[。；]/)[0] + '。';
+/** 描述里的第一句（卡片上放不下整段）。中文按「。；」断，西文按「. ;」断。 */
+const firstSentence = (text: string) => {
+    const cjk = /^[^。；]*[。；]/.exec(text);
+    if (cjk) return cjk[0].replace(/；$/, '。');
+    const latin = /^.*?[.;](\s|$)/.exec(text);
+    return latin ? latin[0].trim().replace(/;$/, '.') : text;
+};
 
 export function StepStyle() {
     const direction = useProjectStore(state => state.project.direction);
@@ -36,6 +43,7 @@ export function StepStyle() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const packs = listPacks();
+    const { t } = useTranslation(['wizard', 'workbench', 'ai']);
 
     const pickPack = (pack: PackId) => updateProject(p => ({ ...p, direction: { ...p.direction, mode: 'single', pack } }));
     const pickMix = () => updateProject(p => ({ ...p, direction: { ...p.direction, mode: 'mix' } }));
@@ -45,7 +53,7 @@ export function StepStyle() {
         try {
             pickMix();
             const result = await generateSceneDirection(program, useProjectStore.getState().project, analysis);
-            log(`AI 按歌词编排了 ${result.paragraphs.length} 段`);
+            log(t('style.aiDone', { count: result.paragraphs.length }));
         } catch (reason) {
             setError((reason as Error).message);
         } finally {
@@ -56,7 +64,7 @@ export function StepStyle() {
     return (
         <div className="space-y-5">
             <div className="space-y-2">
-                <div className="text-xs font-medium text-zinc-400">视觉风格</div>
+                <div className="text-xs font-medium text-zinc-400">{t('style.title')}</div>
                 <div className="grid grid-cols-2 gap-2">
                     {packs.map(pack => {
                         const selected = direction.mode === 'single' && direction.pack === pack.id;
@@ -65,7 +73,7 @@ export function StepStyle() {
                                 key={pack.id}
                                 type="button"
                                 aria-pressed={selected}
-                                aria-label={`风格：${pack.label}`}
+                                aria-label={t('style.cardLabel', { name: packLabel(pack.id) })}
                                 onClick={() => pickPack(pack.id)}
                                 className={cx('group overflow-hidden rounded-lg border text-left transition-colors', selected ? 'border-amber-400 bg-zinc-800/70' : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600')}
                             >
@@ -73,10 +81,10 @@ export function StepStyle() {
                                 <div className="space-y-0.5 p-2">
                                     <div className="flex items-center gap-1.5 text-sm text-zinc-100">
                                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: pack.color }} />
-                                        {pack.shortLabel}
+                                        {packShortLabel(pack.id)}
                                         {selected && <Check size={13} className="ml-auto text-amber-400" />}
                                     </div>
-                                    <div className="line-clamp-3 text-[11px] leading-snug text-zinc-500">{firstSentence(pack.description)}</div>
+                                    <div className="line-clamp-3 text-[11px] leading-snug text-zinc-500">{firstSentence(packDescription(pack.id))}</div>
                                 </div>
                             </button>
                         );
@@ -84,7 +92,7 @@ export function StepStyle() {
                     <button
                         type="button"
                         aria-pressed={direction.mode === 'mix'}
-                        aria-label="风格：按段落混用"
+                        aria-label={t('style.cardLabel', { name: t('workbench:status.mix') })}
                         onClick={pickMix}
                         className={cx('flex flex-col overflow-hidden rounded-lg border text-left transition-colors', direction.mode === 'mix' ? 'border-amber-400 bg-zinc-800/70' : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600')}
                     >
@@ -94,10 +102,10 @@ export function StepStyle() {
                         </div>
                         <div className="space-y-0.5 p-2">
                             <div className="flex items-center gap-1.5 text-sm text-zinc-100">
-                                按段落混用
+                                {t('workbench:status.mix')}
                                 {direction.mode === 'mix' && <Check size={13} className="ml-auto text-amber-400" />}
                             </div>
-                            <div className="text-[11px] leading-snug text-zinc-500">副歌、间奏用大构图，主歌用排字，段落之间换风格。</div>
+                            <div className="text-[11px] leading-snug text-zinc-500">{t('style.mixHint')}</div>
                         </div>
                     </button>
                 </div>
@@ -105,10 +113,10 @@ export function StepStyle() {
                     <div className="flex items-center gap-2 rounded-md border border-zinc-800 p-2">
                         <Sparkles size={14} className="shrink-0 text-amber-400" />
                         <div className="min-w-0 flex-1 text-[11px] text-zinc-400">
-                            {aiDirected ? '已按 AI 的编排给每段挑了风格。' : '让 AI 读歌词，给每一段挑风格与转场。'}
+                            {aiDirected ? t('style.aiDirected') : t('style.aiHint')}
                         </div>
                         <Button size="sm" disabled={busy || program.lines.length === 0} onClick={() => void aiDirect()}>
-                            {busy ? '编排中…' : aiDirected ? '重新编排' : 'AI 编排'}
+                            {busy ? t('ai:direct.busy') : aiDirected ? t('style.aiAgain') : t('style.aiRun')}
                         </Button>
                     </div>
                 )}
@@ -116,7 +124,7 @@ export function StepStyle() {
             </div>
 
             <div className="space-y-2">
-                <div className="text-xs font-medium text-zinc-400">画幅</div>
+                <div className="text-xs font-medium text-zinc-400">{t('style.aspect')}</div>
                 <div className="grid grid-cols-4 gap-2">
                     {ASPECTS.map(item => (
                         <button
@@ -127,8 +135,8 @@ export function StepStyle() {
                             className={cx('flex flex-col items-center gap-1.5 rounded-lg border px-1 py-2.5 transition-colors', aspect === item.value ? 'border-amber-400 bg-zinc-800/70' : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600')}
                         >
                             <span className="flex h-7 items-center"><span className={cx('rounded-sm border-2', item.box, aspect === item.value ? 'border-amber-400' : 'border-zinc-500')} /></span>
-                            <span className="text-xs text-zinc-100">{item.label}</span>
-                            <span className="text-[10px] text-zinc-500">{item.hint}</span>
+                            <span className="text-xs text-zinc-100">{t(`style.aspects.${item.key}.label`)}</span>
+                            <span className="text-[10px] text-zinc-500">{t(`style.aspects.${item.key}.hint`)}</span>
                         </button>
                     ))}
                 </div>

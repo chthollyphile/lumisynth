@@ -7,6 +7,7 @@
 // 提供方必须允许浏览器跨域访问；不允许时 fetch 直接失败，这里给出可读的原因。
 import type { ResolvedAiProvider } from './settings';
 import { DEFAULT_MODELS } from './settings';
+import { t } from '@/i18n';
 import {
     detectOpenAICompatibleProvider,
     rejectsOpenAICompatibleParameter,
@@ -72,6 +73,11 @@ const readErrorDetail = async (response: Response) => {
 };
 
 /** fetch 本身失败（不是 HTTP 错误）：断网、地址错，或者该服务不允许浏览器跨域。 */
+/** 接口返回错误状态码时给用户看的说明。 */
+const apiError = (label: string, status: number, detail: string | undefined | null) => (
+    detail ? t('ai:errors.apiDetail', { label, status, detail }) : t('ai:errors.api', { label, status })
+);
+
 const send = async (label: string, url: string, init: RequestInit, userSignal?: AbortSignal, via?: () => Promise<Response>) => {
     try {
         return await (via ? via() : fetch(url, init));
@@ -79,11 +85,8 @@ const send = async (label: string, url: string, init: RequestInit, userSignal?: 
         // 用户取消：原样抛出，由调用方按 signal.aborted 处理。
         if (userSignal?.aborted) throw error;
         const name = (error as Error).name;
-        if (name === 'TimeoutError' || name === 'AbortError') throw new AiRequestError(`${label} 请求超时`, 504);
-        throw new AiRequestError(
-            `连不上 ${label}（${new URL(url).host}）：网络不通、地址有误，或者这个服务不允许浏览器直接访问（跨域）。`,
-            0,
-        );
+        if (name === 'TimeoutError' || name === 'AbortError') throw new AiRequestError(t('ai:errors.timeout', { label }), 504);
+        throw new AiRequestError(t('ai:errors.unreachable', { label, host: new URL(url).host }), 0);
     }
 };
 
@@ -117,7 +120,7 @@ const runOpenAI = async (request: JsonRequest, provider: ResolvedAiProvider, sig
     const init: RequestInit = { method: 'POST', headers, signal: linkSignal(signal) };
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
-        const response = await send('OpenAI 兼容接口', apiUrl, init, signal, () => sendOpenAICompatibleRequest({ apiUrl, provider: vendor, body, init }));
+        const response = await send(t('ai:errors.openaiLabel'), apiUrl, init, signal, () => sendOpenAICompatibleRequest({ apiUrl, provider: vendor, body, init }));
         if (!response.ok) {
             const detail = await readErrorDetail(response);
             // 有的推理模型只接受默认温度。
@@ -125,14 +128,14 @@ const runOpenAI = async (request: JsonRequest, provider: ResolvedAiProvider, sig
                 delete body.temperature;
                 continue;
             }
-            throw new AiRequestError(`OpenAI 兼容接口出错（${response.status}）${detail ? `：${detail}` : ''}`, response.status);
+            throw new AiRequestError(apiError(t('ai:errors.openaiLabel'), response.status, detail), response.status);
         }
         const data = await response.json() as { choices?: Array<{ message?: { content?: unknown }; finish_reason?: string }> };
         const text = extractText(data.choices?.[0]?.message);
-        if (!text) throw new AiRequestError(`模型没有返回内容（finish_reason: ${data.choices?.[0]?.finish_reason ?? '未知'}）`, 502);
+        if (!text) throw new AiRequestError(t('ai:errors.emptyWithReason', { reason: `finish_reason: ${data.choices?.[0]?.finish_reason ?? '?'}` }), 502);
         return text;
     }
-    throw new AiRequestError('AI 请求失败', 502);
+    throw new AiRequestError(t('ai:errors.failed'), 502);
 };
 
 const runGemini = async (request: JsonRequest, provider: ResolvedAiProvider, signal?: AbortSignal): Promise<string> => {
@@ -155,11 +158,11 @@ const runGemini = async (request: JsonRequest, provider: ResolvedAiProvider, sig
     }, signal);
     if (!response.ok) {
         const detail = await readErrorDetail(response);
-        throw new AiRequestError(`Gemini 接口出错（${response.status}）${detail ? `：${detail}` : ''}`, response.status);
+        throw new AiRequestError(apiError('Gemini', response.status, detail), response.status);
     }
     const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     const text = data.candidates?.[0]?.content?.parts?.find(part => typeof part.text === 'string')?.text;
-    if (!text) throw new AiRequestError('模型没有返回内容', 502);
+    if (!text) throw new AiRequestError(t('ai:errors.empty'), 502);
     return text;
 };
 
@@ -188,14 +191,14 @@ const runAnthropic = async (request: JsonRequest, provider: ResolvedAiProvider, 
     }, signal);
     if (!response.ok) {
         const detail = await readErrorDetail(response);
-        throw new AiRequestError(`Anthropic 接口出错（${response.status}）${detail ? `：${detail}` : ''}`, response.status);
+        throw new AiRequestError(apiError('Anthropic', response.status, detail), response.status);
     }
     const data = await response.json() as { content?: Array<{ type: string; input?: unknown; text?: string }>; stop_reason?: string };
     const tool = data.content?.find(block => block.type === 'tool_use');
     if (tool?.input !== undefined) return JSON.stringify(tool.input);
     const text = data.content?.find(block => block.type === 'text')?.text;
     if (text) return text;
-    throw new AiRequestError(`模型没有返回内容（stop_reason: ${data.stop_reason ?? '未知'}）`, 502);
+    throw new AiRequestError(t('ai:errors.emptyWithReason', { reason: `stop_reason: ${data.stop_reason ?? '?'}` }), 502);
 };
 
 export const PROVIDER_DISPLAY: Record<ResolvedAiProvider['kind'], string> = {
@@ -219,6 +222,6 @@ export const generateJson = async <T>(request: JsonRequest, provider: ResolvedAi
         return { value: JSON.parse(cleaned) as T, provider: PROVIDER_DISPLAY[provider.kind] };
     } catch {
         console.error('[ai] unparsable response:', cleaned.slice(0, 2000));
-        throw new AiRequestError('模型返回的不是合法的 JSON', 502);
+        throw new AiRequestError(t('ai:errors.invalidJson'), 502);
     }
 };

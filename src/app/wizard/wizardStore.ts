@@ -7,7 +7,8 @@ import { newProject, openProject } from '@/project/actions';
 import { deleteProjectRow } from '@/project/db';
 import { useProjectStore } from '@/project/store';
 
-export const WIZARD_STEPS = ['歌曲', '风格', '素材', '配色', '完成'] as const;
+/** 步骤的 id（名字在 wizard:steps 里）。 */
+export const WIZARD_STEPS = ['song', 'style', 'assets', 'theme', 'done'] as const;
 export type ThemeSource = 'default' | 'cover' | 'ai' | 'random';
 
 interface WizardState {

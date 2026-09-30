@@ -3,6 +3,7 @@
 // 保存前的校验，以及推荐色板。
 import type { DualTheme, Theme } from '@/core/types';
 import { sanitizeDualTheme as sanitizeUntyped } from '@/ai/vendor/themeSanitizer.mjs';
+import { t } from '@/i18n';
 
 // 清洗器是 folia 原样搬来的 .mjs（不做类型检查），推断出的回退主题类型太窄：这里给它一个真实的签名。
 const sanitizeDualTheme = sanitizeUntyped as unknown as (value: unknown, fallback: DualTheme) => DualTheme;
@@ -19,14 +20,13 @@ export const LYRICS_ICON_LIMIT = 12;
 export const WORD_COLOR_LIMIT = 40;
 export const RECOMMENDED_COLOR_LIMIT = 12;
 
-export const COLOR_FIELDS: Array<{ key: EditableColorKey; label: string; description: string }> = [
-    { key: 'backgroundColor', label: '背景', description: '整个画面的底色' },
-    { key: 'primaryColor', label: '主色', description: '歌词正文与主要图形' },
-    { key: 'accentColor', label: '强调', description: '高亮、点亮的字与光' },
-    { key: 'secondaryColor', label: '次要', description: '辅助图形、未唱到的字' },
-];
+export const COLOR_KEYS: EditableColorKey[] = ['backgroundColor', 'primaryColor', 'accentColor', 'secondaryColor'];
 
-export const MODE_LABELS: Record<EditableMode, string> = { dark: '深色', light: '浅色' };
+/** 颜色位的名字与用途说明。 */
+export const colorField = (key: EditableColorKey) => ({ label: t(`theme:colors.${key}.label`), description: t(`theme:colors.${key}.description`) });
+
+/** 深色 / 浅色。 */
+export const modeLabel = (mode: EditableMode) => t(`theme:modes.${mode}`);
 
 const withMetadata = (theme: Theme, fallbackName: string): Theme => ({
     ...theme,
@@ -42,8 +42,8 @@ const withMetadata = (theme: Theme, fallbackName: string): Theme => ({
  */
 export const normalizeThemeDraft = (draft: DualTheme, fallback: DualTheme = draft): DualTheme => {
     const named = (dual: DualTheme): DualTheme => ({
-        light: withMetadata(dual.light, '自定义浅色'),
-        dark: withMetadata(dual.dark, '自定义深色'),
+        light: withMetadata(dual.light, t('theme:customLight')),
+        dark: withMetadata(dual.dark, t('theme:customDark')),
     });
     return sanitizeDualTheme(named(draft), named(fallback));
 };
@@ -76,7 +76,7 @@ export const normalizePaletteColor = (color: string) => {
     return hex.length === 3 ? `#${[...hex].map(char => char + char).join('')}` : `#${hex}`;
 };
 
-const themeColors = (dual: DualTheme) => (['light', 'dark'] as const).flatMap(mode => COLOR_FIELDS.map(field => dual[mode][field.key]));
+const themeColors = (dual: DualTheme) => (['light', 'dark'] as const).flatMap(mode => COLOR_KEYS.map(key => dual[mode][key]));
 
 /** 推荐色：封面取色在前（一键就能用上封面自己的颜色），然后是主题现有的八个颜色，去重。 */
 export const buildRecommendedColors = (dual: DualTheme, coverColors: string[]) => {
@@ -93,7 +93,7 @@ export const buildRecommendedColors = (dual: DualTheme, coverColors: string[]) =
 export const sameEditableTheme = (a: DualTheme, b: DualTheme) => (['light', 'dark'] as const).every(mode => {
     const x = a[mode];
     const y = b[mode];
-    return COLOR_FIELDS.every(field => x[field.key] === y[field.key])
+    return COLOR_KEYS.every(key => x[key] === y[key])
         && (x.name ?? '') === (y.name ?? '')
         && (x.description ?? '') === (y.description ?? '')
         && JSON.stringify(x.wordColors ?? []) === JSON.stringify(y.wordColors ?? [])

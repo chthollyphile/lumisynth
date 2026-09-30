@@ -4,6 +4,7 @@
 // 由 mediabunny 拆成颜色与 alpha 两路编码）；浏览器编不了 VP9 时退回 PNG 序列。
 // 后处理只加在选定的那一组上；暗角、颗粒可以各自单独成层。全部文件连同音频（WAV）与说明打成一个 zip。
 import { zipSync } from 'fflate';
+import { t } from '@/i18n';
 import {
     BufferTarget,
     CanvasSource,
@@ -26,17 +27,8 @@ export interface LayeredSettings {
     separateEffects: SeparateEffect[];
 }
 
-export const LAYER_LABELS: Record<KernelLayer, string> = {
-    background: '背景',
-    assetsBack: '素材（场景之下）',
-    graphics: '场景图形',
-    assetsMid: '素材（场景之上、歌词之下）',
-    text: '歌词文字',
-    assetsFront: '素材（场景之上）',
-    subtitles: '字幕',
-    overlay: '片尾与画框',
-    assetsTop: '素材（最上层）',
-};
+/** 层的名字（界面与导出的文件名都用它，跟着界面语言）。 */
+export const layerLabel = (layer: KernelLayer) => t(`export:layers.${layer}`);
 
 /** 预设：两层（背景 / 歌词动画）、四层（背景 / 场景图形 / 文字 / 字幕）。 */
 export const LAYER_PRESETS: Record<'two' | 'four', KernelLayer[][]> = {
@@ -64,7 +56,7 @@ export const splitsFromGroups = (groups: KernelLayer[][]) => {
     return splits;
 };
 
-export const groupName = (group: KernelLayer[]) => group.map(layer => LAYER_LABELS[layer]).join(' + ');
+export const groupName = (group: KernelLayer[]) => group.map(layerLabel).join(' + ');
 
 export interface LayeredResult {
     blob: Blob;
@@ -72,10 +64,7 @@ export interface LayeredResult {
     alphaMethod: 'webm-alpha' | 'png-sequence';
 }
 
-const EFFECT_NOTES: Record<SeparateEffect, { label: string; blend: string }> = {
-    vignette: { label: '暗角', blend: '普通（黑色 + 透明度）' },
-    grain: { label: '颗粒', blend: '线性光，不透明度 50%（中性灰为 50%）' },
-};
+const effectNote = (effect: SeparateEffect) => ({ label: t(`export:effects.${effect}.label`), blend: t(`export:effects.${effect}.blend`) });
 
 /** 16 位 PCM WAV。 */
 const encodeWav = (buffer: AudioBuffer) => {
@@ -156,7 +145,7 @@ export const exportLayered = async (
     });
     if (!bottomCodec) {
         kernel.destroy();
-        throw new Error(`这个浏览器不能按 ${settings.width}×${settings.height} 编码视频，换一个分辨率试试`);
+        throw new Error(t('export:errors.cannotEncodeSize', { width: settings.width, height: settings.height }));
     }
 
     const tracks: Track[] = [
@@ -170,7 +159,7 @@ export const exportLayered = async (
             },
         })),
         ...separate.map((effect, index): Track => ({
-            name: `${String(layered.groups.length + index + 1).padStart(2, '0')}-效果-${EFFECT_NOTES[effect].label}`,
+            name: `${String(layered.groups.length + index + 1).padStart(2, '0')}-${t('export:readme.effectPrefix')}-${effectNote(effect).label}`,
             transparent: effect === 'vignette',
             render: time => kernel.renderEffect(effect, postProcess[effect], time),
         })),
@@ -228,33 +217,37 @@ export const exportLayered = async (
             if (track.output) {
                 await track.output.finalize();
                 const buffer = (track.output.target as BufferTarget).buffer;
-                if (!buffer) throw new Error('封装失败：没有得到输出数据');
+                if (!buffer) throw new Error(t('export:errors.noOutput'));
                 files[`${track.name}${track.output.format.fileExtension}`] = [new Uint8Array(buffer), { level: 0 }];
             } else if (track.pngs) {
                 track.pngs.forEach((bytes, path) => { files[path] = [bytes, { level: 0 }]; });
             }
         }
         const audio = input.audio ? sliceAudio(input.audio, settings.start, settings.end) : null;
-        if (audio) files['00-音频.wav'] = [encodeWav(audio), { level: 0 }];
+        const audioFile = `00-${t('export:readme.audioName')}.wav`;
+        if (audio) files[audioFile] = [encodeWav(audio), { level: 0 }];
         const readme = [
-            'lumisynth 分层导出',
-            `分辨率 ${settings.width}×${settings.height}，${settings.fps} fps，时长 ${(settings.end - settings.start).toFixed(2)} 秒（歌曲的 ${settings.start.toFixed(2)}–${settings.end.toFixed(2)} 秒）。`,
-            '',
-            '在剪辑软件里按编号从下到上叠放（01 在最下面），全部从 0 秒对齐：',
-            ...tracks.map(track => {
-                const effect = separate.find(item => track.name.endsWith(EFFECT_NOTES[item].label));
-                const blend = effect ? EFFECT_NOTES[effect].blend : '普通';
-                const format = track.pngs ? 'PNG 序列（带透明）' : track.transparent ? 'WebM（VP9，带透明通道）' : '不透明视频';
-                return `  ${track.name}：${format}，混合模式 ${blend}`;
+            t('export:readme.title'),
+            t('export:readme.summary', {
+                width: settings.width, height: settings.height, fps: settings.fps,
+                duration: (settings.end - settings.start).toFixed(2), start: settings.start.toFixed(2), end: settings.end.toFixed(2),
             }),
-            audio ? '  00-音频.wav：整段音频' : '',
             '',
-            layered.postTarget === null ? '后处理：没有加。' : `后处理加在「${tracks[layered.postTarget].name}」上。`,
-            splitText ? '文字与场景图形分开导出时，凝彩的「文字反色」已关闭（反色需要读到文字下面的画面）。' : '',
-            '转场里的擦除色块归入「场景图形」一层；合成导出里它盖在字幕之上，分层叠回去时在文字之下。',
-            alphaMethod === 'png-sequence' ? '这个浏览器编不了 VP9，带透明的层导出成了 PNG 序列。' : '',
+            t('export:readme.stacking'),
+            ...tracks.map(track => {
+                const effect = separate.find(item => track.name.endsWith(effectNote(item).label));
+                const blend = effect ? effectNote(effect).blend : t('export:readme.blendNormal');
+                const format = track.pngs ? t('export:readme.formatPng') : track.transparent ? t('export:readme.formatWebm') : t('export:readme.formatOpaque');
+                return `  ${t('export:readme.track', { name: track.name, format, blend })}`;
+            }),
+            audio ? `  ${t('export:readme.audio', { file: audioFile })}` : '',
+            '',
+            layered.postTarget === null ? t('export:readme.postNone') : t('export:readme.postOn', { name: tracks[layered.postTarget].name }),
+            splitText ? t('export:readme.inversionOff') : '',
+            t('export:readme.wipe'),
+            alphaMethod === 'png-sequence' ? t('export:readme.pngFallback') : '',
         ].filter(line => line !== undefined).join('\n');
-        files['说明.txt'] = new TextEncoder().encode(readme);
+        files[`${t('export:readme.fileName')}.txt`] = new TextEncoder().encode(readme);
         const zipped = zipSync(files as Parameters<typeof zipSync>[0]);
         return {
             blob: new Blob([zipped], { type: 'application/zip' }),

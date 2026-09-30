@@ -10,6 +10,7 @@ import { autoArrangeAssets, clearAutoArrangement, useArrangeOptions, useAutoClip
 import { DropZone } from '../DropZone';
 import { FileButton, Toggle } from '../ui';
 import { AssetThumb, importLibraryFiles } from '../views/LibraryView';
+import { useTranslation } from 'react-i18next';
 
 export function StepAssets() {
     // 选择器返回同一个数组，在组件里再过滤：选择器每次返回新数组会让 zustand 以为状态一直在变。
@@ -17,6 +18,7 @@ export function StepAssets() {
     const images = useMemo(() => assets.filter(asset => asset.kind === 'image'), [assets]);
     const options = useArrangeOptions();
     const autoCount = useAutoClipCount();
+    const { t } = useTranslation(['wizard', 'media']);
     const [arrange, setArrange] = useState(true);
     const imageKey = images.map(image => image.id).join(',');
     const first = useRef(true);
@@ -37,14 +39,12 @@ export function StepAssets() {
 
     return (
         <div className="space-y-5">
-            <p className="text-sm leading-relaxed text-zinc-400">
-                有角色立绘、插画、Logo 之类的图？放进来会以镜头为单位自动摆到画面上。带透明背景的 png 效果最好。没有的话直接下一步。
-            </p>
-            <DropZone target="library" label="松开以加入素材" className="space-y-2.5 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 p-3">
+            <p className="text-sm leading-relaxed text-zinc-400">{t('assets.intro')}</p>
+            <DropZone target="library" label={t('media:library.drop')} className="space-y-2.5 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 p-3">
                 <div className="flex items-center gap-2">
                     <ImagePlus size={16} className="shrink-0 text-zinc-400" />
-                    <span className="flex-1 text-sm text-zinc-200">{images.length > 0 ? `${images.length} 张图片` : '把图片拖到这里'}</span>
-                    <FileButton size="sm" accept={IMAGE_ACCEPT} multiple onFiles={files => void importLibraryFiles(files)}>选择（可多选）</FileButton>
+                    <span className="flex-1 text-sm text-zinc-200">{images.length > 0 ? t('done.imageCount', { count: images.length }) : t('assets.drop')}</span>
+                    <FileButton size="sm" accept={IMAGE_ACCEPT} multiple onFiles={files => void importLibraryFiles(files)}>{t('assets.choose')}</FileButton>
                 </div>
                 {images.length > 0 && (
                     <div className="grid grid-cols-5 gap-1.5">
@@ -56,12 +56,12 @@ export function StepAssets() {
             </DropZone>
 
             <div className="space-y-2.5">
-                <Toggle label="自动编排到画面上" checked={arrange} onChange={setArrange} />
+                <Toggle label={t('media:library.autoArrange')} checked={arrange} onChange={setArrange} />
                 {arrange && (
                     <>
                         <ArrangeOptionsFields />
                         <div className="text-[11px] text-zinc-500">
-                            {autoCount > 0 ? `已经放进 ${autoCount} 个镜头。` : ''}按镜头轮流放图，切镜头时图跟着换：立绘左右交替、从所在的一侧滑入，横图放中间。之后在时间轴或检查器里可以单独调整每一个。
+                            {autoCount > 0 ? t('assets.placed', { count: autoCount }) : ''}{t('assets.explain')}
                         </div>
                     </>
                 )}

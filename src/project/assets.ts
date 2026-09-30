@@ -11,6 +11,7 @@ import { putAsset } from './db';
 import { setSession, useSession } from './session';
 import { updateProject } from './store';
 import type { AssetRef, LumiProject } from './types';
+import { t } from '@/i18n';
 
 export interface LibraryAsset {
     id: string;
@@ -34,7 +35,7 @@ const measureImage = async (blob: Blob) => {
         bitmap.close();
         return size;
     } catch {
-        throw new Error('读不了这张图片');
+        throw new Error(t('project:assets.unreadableImage'));
     }
 };
 
@@ -138,7 +139,7 @@ const measureVideo = (blob: Blob) => new Promise<{ width: number; height: number
     };
     video.onerror = () => {
         URL.revokeObjectURL(url);
-        reject(new Error('这个浏览器播放不了这个视频（换成 H.264 的 mp4 或 VP9 的 webm 试试）'));
+        reject(new Error(t('project:assets.unplayableVideo')));
     };
     video.src = url;
 });

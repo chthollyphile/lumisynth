@@ -14,31 +14,35 @@ import { SettingsSearchContext, StylePanel } from './StylePanel';
 import { Transport } from './Transport';
 import { cx } from './ui';
 import { closeEditorTab, setLayout, useLayout, type EditorTabId } from './workbench/layout';
+import { useTranslation } from 'react-i18next';
+import { LanguageSelect } from './LanguageSelect';
 
-const TABS: Record<EditorTabId, { title: string; icon: typeof MonitorPlay }> = {
-    preview: { title: '预览', icon: MonitorPlay },
-    library: { title: '风格库', icon: LayoutGrid },
-    settings: { title: '设置', icon: Settings2 },
-    script: { title: '剧本', icon: FileCode2 },
-    lyrics: { title: '歌词', icon: MicVocal },
-    theme: { title: '主题', icon: Palette },
-    storyboard: { title: '分镜', icon: Clapperboard },
+const TABS: Record<EditorTabId, typeof MonitorPlay> = {
+    preview: MonitorPlay,
+    library: LayoutGrid,
+    settings: Settings2,
+    script: FileCode2,
+    lyrics: MicVocal,
+    theme: Palette,
+    storyboard: Clapperboard,
 };
 
 function SettingsEditor() {
     const [query, setQuery] = useState('');
+    const { t } = useTranslation('workbench');
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800 px-4 py-2">
                 <Search size={14} className="text-zinc-500" />
                 <input
                     autoFocus
-                    aria-label="搜索设置"
+                    aria-label={t('settings.search')}
                     value={query}
                     onChange={event => setQuery(event.target.value)}
-                    placeholder="搜索设置（例如：字体、转场、后处理、颗粒）"
+                    placeholder={t('settings.searchPlaceholder')}
                     className="h-8 min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none select-text"
                 />
+                <LanguageSelect />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto max-w-2xl">
@@ -67,12 +71,14 @@ export function EditorArea({ preview }: { preview: ReactNode }) {
     const split = useLayout(state => state.editorSplit);
     const showSecondary = active !== 'preview';
     const previewVisible = !showSecondary || split;
+    const { t } = useTranslation('workbench');
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div role="tablist" aria-label="编辑区" className="flex h-8 shrink-0 items-stretch border-b border-zinc-800 bg-zinc-900">
+            <div role="tablist" aria-label={t('editor.area')} className="flex h-8 shrink-0 items-stretch border-b border-zinc-800 bg-zinc-900">
                 {tabs.map(tab => {
-                    const Icon = TABS[tab].icon;
+                    const Icon = TABS[tab];
+                    const title = t(`editor.tabs.${tab}`);
                     const selected = tab === active || (split && tab === 'preview');
                     return (
                         <div
@@ -87,11 +93,11 @@ export function EditorArea({ preview }: { preview: ReactNode }) {
                             )}
                         >
                             <Icon size={13} />
-                            {TABS[tab].title}
+                            {title}
                             {tab !== 'preview' && (
                                 <button
                                     type="button"
-                                    aria-label={`关闭${TABS[tab].title}`}
+                                    aria-label={t('editor.closeTab', { title })}
                                     onClick={event => { event.stopPropagation(); closeEditorTab(tab); }}
                                     className="rounded p-0.5 text-zinc-500 opacity-0 group-hover:opacity-100 hover:bg-zinc-800 hover:text-zinc-100"
                                 >
@@ -105,9 +111,9 @@ export function EditorArea({ preview }: { preview: ReactNode }) {
                 {tabs.length > 1 && (
                     <button
                         type="button"
-                        aria-label="左右分栏"
+                        aria-label={t('editor.split')}
                         aria-pressed={split}
-                        title="左右分栏（左边是预览）"
+                        title={t('editor.splitHint')}
                         onClick={() => setLayout({ editorSplit: !split, activeEditorTab: active === 'preview' ? tabs.find(tab => tab !== 'preview') ?? 'preview' : active })}
                         className={cx('px-2', split ? 'text-amber-300' : 'text-zinc-500 hover:text-zinc-200')}
                     >

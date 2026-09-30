@@ -3,6 +3,8 @@
 // 明度与饱和度按深 / 浅两种底色重新定，保证正文与背景的对比度（封面本身再暗、再灰也能读）。
 import type { DualTheme, Theme } from '@/core/types';
 import { DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME } from '@/project/defaults';
+import { t } from '@/i18n';
+import { themeName } from './themeNames';
 
 type Hsl = { h: number; s: number; l: number };
 
@@ -64,7 +66,7 @@ export const themeFromCover = (colors: string[], base: DualTheme = { dark: DEFAU
 
     const dark: Theme = {
         ...base.dark,
-        name: '封面 · 深色',
+        name: themeName(t('wizard:coverThemeName'), 'dark'),
         backgroundColor: hslToHex({ h: hue, s: muted ? 0.04 : clamp(main.s * 0.45, 0.08, 0.3), l: 0.07 }),
         primaryColor: hslToHex({ h: hue, s: muted ? 0.02 : 0.2, l: 0.93 }),
         accentColor: hslToHex({ h: hue, s: accentSat, l: muted ? 0.8 : clamp(main.l, 0.6, 0.7) }),
@@ -73,7 +75,7 @@ export const themeFromCover = (colors: string[], base: DualTheme = { dark: DEFAU
     };
     const light: Theme = {
         ...base.light,
-        name: '封面 · 浅色',
+        name: themeName(t('wizard:coverThemeName'), 'light'),
         backgroundColor: hslToHex({ h: hue, s: muted ? 0.04 : clamp(main.s * 0.5, 0.12, 0.35), l: 0.95 }),
         primaryColor: hslToHex({ h: hue, s: muted ? 0.04 : 0.3, l: 0.12 }),
         accentColor: hslToHex({ h: hue, s: accentSat, l: muted ? 0.3 : clamp(main.l, 0.36, 0.44) }),

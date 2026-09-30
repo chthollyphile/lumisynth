@@ -11,6 +11,7 @@ import type { Line } from '@/core/types';
 import { useSession } from '@/project/session';
 import { clock, seek, usePlayback } from '../playback';
 import { cx } from '../ui';
+import { useTranslation } from 'react-i18next';
 import { drawWaveform, prepareCanvas } from '../waveform';
 import { startWordDrag, type WordDragTarget } from './wordDrag';
 
@@ -38,6 +39,7 @@ export function WordStrip({ line, anchor, limit, selected, onSelect, snap, previ
     disabled?: boolean;
 }) {
     const analysis = useSession(state => state.analysis);
+    const { t: tr } = useTranslation(['song', 'arrange']);
     const host = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
     const [width, setWidth] = useState(600);
@@ -104,8 +106,8 @@ export function WordStrip({ line, anchor, limit, selected, onSelect, snap, previ
             ))}
             {/* 行的范围 */}
             <div
-                aria-label="整行"
-                title="按住拖动整行（点一下移动播放头）"
+                aria-label={tr('words.line')}
+                title={tr('words.lineHint')}
                 onPointerDown={event => drag(event, { type: 'line-move' })}
                 className={cx('absolute top-0 bottom-0 bg-amber-400/5 hover:bg-amber-400/10', disabled ? 'pointer-events-none' : 'cursor-grab')}
                 style={{ left: x(line.startTime), width: x(line.endTime) - x(line.startTime) }}
@@ -113,7 +115,7 @@ export function WordStrip({ line, anchor, limit, selected, onSelect, snap, previ
             {(['start', 'end'] as const).map(edge => (
                 <div
                     key={edge}
-                    aria-label={edge === 'start' ? '行的开始' : '行的结束'}
+                    aria-label={edge === 'start' ? tr('arrange:timeline.lineStart') : tr('arrange:timeline.lineEnd')}
                     onPointerDown={event => drag(event, { type: 'line', edge })}
                     className="absolute top-0 bottom-0 z-10 w-2 -translate-x-1/2 cursor-ew-resize border-x border-dashed border-amber-400/60 hover:bg-amber-400/20"
                     style={{ left: x(edge === 'start' ? line.startTime : line.endTime) }}
@@ -139,12 +141,12 @@ export function WordStrip({ line, anchor, limit, selected, onSelect, snap, previ
                     >
                         {unitWidth > 10 ? unit.text : ''}
                         <div
-                            aria-label={`${unit.text} 的开始`}
+                            aria-label={tr('arrange:timeline.wordStart', { text: unit.text })}
                             onPointerDown={event => { onSelect(index); drag(event, { type: 'edge', index, edge: 'start' }); }}
                             className="absolute top-0 left-0 h-full w-1.5 cursor-ew-resize hover:bg-amber-300/70"
                         />
                         <div
-                            aria-label={`${unit.text} 的结束`}
+                            aria-label={tr('arrange:timeline.wordEnd', { text: unit.text })}
                             onPointerDown={event => { onSelect(index); drag(event, { type: 'edge', index, edge: 'end' }); }}
                             className="absolute top-0 right-0 h-full w-1.5 cursor-ew-resize hover:bg-amber-300/70"
                         />
@@ -155,7 +157,7 @@ export function WordStrip({ line, anchor, limit, selected, onSelect, snap, previ
                 <div className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-emerald-300" style={{ left: x(time) }} />
             )}
             <div className="pointer-events-none absolute right-1 bottom-0.5 text-[10px] text-zinc-500">
-                {dragging ? 'Shift 带着后面的 · Alt 不吸附' : `${formatMs(line.startTime)} – ${formatMs(line.endTime)}`}
+                {dragging ? tr('words.dragHint') : `${formatMs(line.startTime)} – ${formatMs(line.endTime)}`}
             </div>
         </div>
     );

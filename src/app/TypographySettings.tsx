@@ -8,6 +8,8 @@ import { FONT_FILE_ACCEPT, importFontFile, listLocalFontFamilies, removeUploaded
 import { updateProject, useProjectStore } from '@/project/store';
 import { LYRICS_SCALE_RANGE, type FontSettings, type ProjectTypography } from '@/project/typography';
 import { log } from './output';
+import { useTranslation } from 'react-i18next';
+import { t as translate } from '@/i18n';
 import { Button, cx, Field, FileButton, inputClass, Segmented, Slider, Toggle } from './ui';
 
 type Target = 'lyrics' | 'subtitles';
@@ -19,6 +21,7 @@ const patchFont = (target: Target, patch: Partial<ProjectTypography['lyrics']> &
 
 function FamilyList({ target, font }: { target: Target; font: FontSettings }) {
     const [draft, setDraft] = useState('');
+    const { t } = useTranslation('look');
     const add = (names: string[]) => {
         const families = normalizeFontFamilyStack([...font.families, ...names]);
         patchFont(target, { families });
@@ -31,22 +34,22 @@ function FamilyList({ target, font }: { target: Target; font: FontSettings }) {
         patchFont(target, { families });
     };
     return (
-        <Field label="字体族" hint="按顺序回退，最后是上面选的基础字体。写系统里已安装的字体名，或上传字体文件。">
+        <Field label={t('fonts.families')} hint={t('fonts.familiesHint')}>
             {font.families.length > 0 && (
                 <ul className="mb-1.5 space-y-1">
                     {font.families.map((family, index) => (
                         <li key={family} className="flex items-center gap-1 rounded bg-zinc-800/70 px-1.5 py-1 text-xs text-zinc-200">
                             <span className="min-w-0 flex-1 truncate" style={{ fontFamily: `"${family}"` }} title={family}>{family}</span>
-                            <button type="button" aria-label={`上移 ${family}`} disabled={index === 0} onClick={() => move(index)} className="rounded p-0.5 text-zinc-500 hover:text-zinc-100 disabled:opacity-30"><ArrowUp size={12} /></button>
-                            <button type="button" aria-label={`移除 ${family}`} onClick={() => patchFont(target, { families: font.families.filter(item => item !== family) })} className="rounded p-0.5 text-zinc-500 hover:text-zinc-100"><X size={12} /></button>
+                            <button type="button" aria-label={t('fonts.moveUp', { family })} disabled={index === 0} onClick={() => move(index)} className="rounded p-0.5 text-zinc-500 hover:text-zinc-100 disabled:opacity-30"><ArrowUp size={12} /></button>
+                            <button type="button" aria-label={t('fonts.remove', { family })} onClick={() => patchFont(target, { families: font.families.filter(item => item !== family) })} className="rounded p-0.5 text-zinc-500 hover:text-zinc-100"><X size={12} /></button>
                         </li>
                     ))}
                 </ul>
             )}
             <input
-                aria-label="添加字体族"
+                aria-label={t('fonts.add')}
                 spellCheck={false}
-                placeholder="输入字体名，回车添加（可用逗号分隔多个）"
+                placeholder={t('fonts.addPlaceholder')}
                 value={draft}
                 onChange={event => setDraft(event.target.value)}
                 onKeyDown={event => {
@@ -64,6 +67,7 @@ function LocalFontPicker({ onPick }: { onPick: (family: string) => void }) {
     const [families, setFamilies] = useState<string[] | null>(null);
     const [query, setQuery] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const { t } = useTranslation('look');
     const filtered = useMemo(() => {
         const needle = query.trim().toLowerCase();
         return (families ?? []).filter(family => !needle || family.toLowerCase().includes(needle)).slice(0, 200);
@@ -75,7 +79,7 @@ function LocalFontPicker({ onPick }: { onPick: (family: string) => void }) {
                 <Button size="sm" variant="ghost" onClick={() => {
                     listLocalFontFamilies().then(setFamilies, reason => setError((reason as Error).message));
                 }}>
-                    <FolderOpen size={12} /> 从本机字体选择…
+                    <FolderOpen size={12} /> {t('fonts.local')}
                 </Button>
                 {error && <div className="mt-1 text-[11px] text-red-300">{error}</div>}
             </div>
@@ -87,13 +91,13 @@ function LocalFontPicker({ onPick }: { onPick: (family: string) => void }) {
                 <Search size={12} className="text-zinc-500" />
                 <input
                     autoFocus
-                    aria-label="搜索本机字体"
+                    aria-label={t('fonts.localSearch')}
                     value={query}
                     onChange={event => setQuery(event.target.value)}
-                    placeholder={`搜索 ${families.length} 个本机字体`}
+                    placeholder={t('fonts.localSearchPlaceholder', { count: families.length })}
                     className="h-7 min-w-0 flex-1 bg-transparent text-xs text-zinc-100 outline-none select-text"
                 />
-                <button type="button" aria-label="关闭本机字体列表" onClick={() => setFamilies(null)} className="p-0.5 text-zinc-500 hover:text-zinc-100"><X size={12} /></button>
+                <button type="button" aria-label={t('fonts.localClose')} onClick={() => setFamilies(null)} className="p-0.5 text-zinc-500 hover:text-zinc-100"><X size={12} /></button>
             </div>
             <ul className="max-h-48 overflow-y-auto py-1">
                 {filtered.map(family => (
@@ -115,24 +119,25 @@ function LocalFontPicker({ onPick }: { onPick: (family: string) => void }) {
 
 function FontEditor({ target, font, scale }: { target: Target; font: FontSettings; scale?: number }) {
     const stack = resolveThemeFontStack({ fontStyle: font.style, fontFamilyStack: font.families });
+    const { t } = useTranslation('look');
     return (
         <>
-            <Field label="基础字体">
+            <Field label={t('fonts.base')}>
                 <Segmented<FontSettings['style']>
                     value={font.style}
                     onChange={style => patchFont(target, { style })}
-                    options={[{ value: 'sans', label: '黑体' }, { value: 'serif', label: '宋体' }, { value: 'mono', label: '等宽' }]}
+                    options={[{ value: 'sans', label: t('fonts.sans') }, { value: 'serif', label: t('fonts.serif') }, { value: 'mono', label: t('fonts.mono') }]}
                 />
             </Field>
             <FamilyList target={target} font={font} />
-            <Toggle checked={font.weight === null} onChange={auto => patchFont(target, { weight: auto ? null : 500 })} label="字重按风格自动" />
+            <Toggle checked={font.weight === null} onChange={auto => patchFont(target, { weight: auto ? null : 500 })} label={t('fonts.autoWeight')} />
             {font.weight !== null && (
-                <Field label="字重" hint="字体本身没有这个字重时，浏览器只能合成粗体或退回最近的字重。">
+                <Field label={t('fonts.weight')} hint={t('fonts.weightHint')}>
                     <Slider value={font.weight} min={100} max={900} step={100} onChange={weight => patchFont(target, { weight }, 'weight')} />
                 </Field>
             )}
             {scale !== undefined && (
-                <Field label="字号">
+                <Field label={t('fonts.size')}>
                     <Slider
                         value={scale}
                         min={LYRICS_SCALE_RANGE[0]}
@@ -158,6 +163,7 @@ export function TypographySettings() {
     const typography = useProjectStore(state => state.project.typography);
     const [uploading, setUploading] = useState(false);
     const [, setFontsVersion] = useState(0);
+    const { t } = useTranslation('look');
     // 本机字体列表里的名字在样例里要等字体加载后才显示正确。
     useEffect(() => {
         if (typeof document === 'undefined' || !document.fonts) return;
@@ -168,18 +174,18 @@ export function TypographySettings() {
 
     return (
         <>
-            <div className="text-[11px] font-medium text-zinc-400">歌词</div>
+            <div className="text-[11px] font-medium text-zinc-400">{t('fonts.lyrics')}</div>
             <FontEditor target="lyrics" font={typography.lyrics} scale={typography.lyrics.scale} />
-            <div className="pt-1 text-[11px] font-medium text-zinc-400">字幕（译文 / 罗马音）</div>
-            <Toggle checked={typography.subtitles.inherit} onChange={inherit => patchFont('subtitles', { inherit })} label="沿用歌词字体" />
+            <div className="pt-1 text-[11px] font-medium text-zinc-400">{t('fonts.subtitles')}</div>
+            <Toggle checked={typography.subtitles.inherit} onChange={inherit => patchFont('subtitles', { inherit })} label={t('fonts.inherit')} />
             {!typography.subtitles.inherit && <FontEditor target="subtitles" font={typography.subtitles} />}
-            <div className="pt-1 text-[11px] font-medium text-zinc-400">上传的字体</div>
+            <div className="pt-1 text-[11px] font-medium text-zinc-400">{t('fonts.uploaded')}</div>
             {typography.fonts.length > 0 && (
                 <ul className="space-y-1">
                     {typography.fonts.map(font => (
                         <li key={font.family} className="flex items-center gap-1 text-xs text-zinc-300">
                             <span className="min-w-0 flex-1 truncate" style={{ fontFamily: `"${font.family}"` }} title={font.asset.name}>{font.family}</span>
-                            <button type="button" aria-label={`删除字体 ${font.family}`} onClick={() => removeUploadedFont(font.family)} className="rounded p-0.5 text-zinc-500 hover:text-zinc-100"><X size={12} /></button>
+                            <button type="button" aria-label={t('fonts.deleteUploaded', { family: font.family })} onClick={() => removeUploadedFont(font.family)} className="rounded p-0.5 text-zinc-500 hover:text-zinc-100"><X size={12} /></button>
                         </li>
                     ))}
                 </ul>
@@ -191,14 +197,14 @@ export function TypographySettings() {
                 onFile={file => {
                     setUploading(true);
                     importFontFile(file)
-                        .then(family => log(`已添加字体：${family}`))
+                        .then(family => log(translate('look:fonts.added', { family })))
                         .catch(reason => log((reason as Error).message, 'error'))
                         .finally(() => setUploading(false));
                 }}
             >
-                <Upload size={12} /> 上传字体文件（ttf / otf / woff2）
+                <Upload size={12} /> {t('fonts.upload')}
             </FileButton>
-            <div className="text-[11px] text-zinc-500">上传的字体会存进工程（也会打包进 .lumi），换一台电脑打开也能用。</div>
+            <div className="text-[11px] text-zinc-500">{t('fonts.uploadHint')}</div>
         </>
     );
 }
