@@ -307,7 +307,7 @@ export class LumiKernel {
         this.backgroundHolder.addChild(this.background.container);
 
         this.subtitles?.destroy();
-        this.subtitles = buildSubtitleLayer(pixi, width, height, this.look.subtitleTheme ?? theme, tunings.kernel.subtitles, this.lines);
+        this.subtitles = buildSubtitleLayer(pixi, width, height, this.look.subtitleTheme ?? theme, tunings.kernel.subtitles, this.lines, resolution);
         this.subtitleHolder.addChild(this.subtitles.container);
 
         // 画框是包自建 context 的 Graphics，逐节点销毁才会连 GPU 批数据一起放掉（见 destroyPixiDisplayTree）。

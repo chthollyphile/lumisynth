@@ -1,6 +1,7 @@
 // src/kernel/layers.ts
 // 内核自己画的层：背景、唯一的后处理链、译文字幕、擦除色块。
 import type { Line, Theme } from '@/core/types';
+import { mixColors, parseColorChannels } from '@/engine/shared/colorMix';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '@/engine/shared/fontStacks';
 import { destroyPixiDisplayTree } from '@/engine/shared/pixiDisplayResources';
 import { createSonnetLensFilter } from '@/packs/sonnet/sonnetLensFilter';
@@ -128,6 +129,124 @@ export interface SubtitleLayer {
     destroy: () => void;
 }
 
+// 字幕的颜色跟着底下的画面走：主题色是按主题底色配的，镜头自己铺了浅色底（凝彩的色块、绘光的光斑……）
+// 时照原样画就看不清。做法与凝彩歌词的反色一样，在 GPU 上读已经画好的画面：底亮就用深字 + 浅色衬底，
+// 底暗就用浅字 + 深色衬底。字与衬底画在同一个容器里，分别用绿、红两个通道画出覆盖率，由滤镜上色。
+
+const luminance = (color: string) => {
+    const channels = parseColorChannels(color);
+    return channels ? (channels.r * 0.2126 + channels.g * 0.7152 + channels.b * 0.0722) / 255 : 0.5;
+};
+
+/** 把颜色往白 / 黑推，直到亮度过了 bound（保留一点原来的色相）。 */
+const pushLuminance = (color: string, toward: 'light' | 'dark', bound: number) => {
+    const target = toward === 'light' ? '#ffffff' : '#0a0a0a';
+    const passes = (value: string) => (toward === 'light' ? luminance(value) >= bound : luminance(value) <= bound);
+    for (let step = 0; step <= 10; step += 1) {
+        const mixed = mixColors(color, target, step / 10);
+        if (passes(mixed)) return mixed;
+    }
+    return target;
+};
+
+/** 字幕的两套配色：浅字配深衬底、深字配浅衬底。 */
+export const subtitlePalette = (theme: Theme) => ({
+    lightText: pushLuminance(theme.secondaryColor, 'light', 0.74),
+    darkText: pushLuminance(theme.secondaryColor, 'dark', 0.16),
+    darkHalo: pushLuminance(theme.backgroundColor, 'dark', 0.2),
+    lightHalo: pushLuminance(theme.backgroundColor, 'light', 0.86),
+});
+
+const subtitleVertex = `
+in vec2 aPosition;
+out vec2 vTextureCoord;
+
+uniform vec4 uInputSize;
+uniform vec4 uOutputFrame;
+uniform vec4 uOutputTexture;
+
+void main(void) {
+    vec2 position = aPosition * uOutputFrame.zw + uOutputFrame.xy;
+    position.x = position.x * (2.0 / uOutputTexture.x) - 1.0;
+    position.y = position.y * (2.0 * uOutputTexture.z / uOutputTexture.y) - uOutputTexture.z;
+    gl_Position = vec4(position, 0.0, 1.0);
+    vTextureCoord = aPosition * (uOutputFrame.zw * uInputSize.zw);
+}
+`;
+
+const subtitleFragment = `
+in vec2 vTextureCoord;
+out vec4 finalColor;
+
+uniform sampler2D uTexture;
+uniform sampler2D uBackTexture;
+uniform highp vec4 uInputSize;
+uniform vec3 uLightText;
+uniform vec3 uDarkText;
+uniform vec3 uLightHalo;
+uniform vec3 uDarkHalo;
+uniform float uThreshold;
+uniform float uFallbackLuminance;
+uniform float uSampleRadius;
+
+float backLuminance(vec2 uv) {
+    vec4 back = texture(uBackTexture, uv);
+    // 渲染目标是预乘的；什么都没画的地方（分层导出的透明底）当作主题底色。
+    vec3 straight = back.rgb / max(back.a, 1e-4);
+    float lum = dot(straight, vec3(0.2126, 0.7152, 0.0722));
+    return mix(uFallbackLuminance, lum, clamp(back.a * 3.0, 0.0, 1.0));
+}
+
+void main(void) {
+    vec4 front = texture(uTexture, vTextureCoord);
+    if (front.a <= 0.0) {
+        finalColor = vec4(0.0);
+        return;
+    }
+    // 取一圈（约半个字宽）的平均亮度，细碎的纹理不会让一个字里深浅来回跳。
+    vec2 r = uInputSize.zw * uSampleRadius;
+    vec2 d = r * 0.7071;
+    float lum = backLuminance(vTextureCoord) * 0.2
+        + (backLuminance(vTextureCoord + vec2(r.x, 0.0)) + backLuminance(vTextureCoord - vec2(r.x, 0.0))
+            + backLuminance(vTextureCoord + vec2(0.0, r.y)) + backLuminance(vTextureCoord - vec2(0.0, r.y))
+            + backLuminance(vTextureCoord + d) + backLuminance(vTextureCoord - d)
+            + backLuminance(vTextureCoord + vec2(d.x, -d.y)) + backLuminance(vTextureCoord + vec2(-d.x, d.y))) * 0.1;
+    float dark = step(uThreshold, lum);
+    vec3 text = mix(uLightText, uDarkText, dark);
+    vec3 halo = mix(uDarkHalo, uLightHalo, dark);
+    // 绿通道是字的覆盖率，红通道是字底下露出来的衬底（预乘的「字盖在衬底上」）。
+    finalColor = vec4(text * front.g + halo * front.r, front.a);
+}
+`;
+
+const rgbOf = (color: string) => {
+    const channels = parseColorChannels(color) ?? { r: 128, g: 128, b: 128 };
+    return new Float32Array([channels.r / 255, channels.g / 255, channels.b / 255]);
+};
+
+const createSubtitleContrastFilter = (pixi: PixiModule, theme: Theme, sampleRadius: number, padding: number) => {
+    const palette = subtitlePalette(theme);
+    const uniforms = new pixi.UniformGroup({
+        uLightText: { value: rgbOf(palette.lightText), type: 'vec3<f32>' },
+        uDarkText: { value: rgbOf(palette.darkText), type: 'vec3<f32>' },
+        uLightHalo: { value: rgbOf(palette.lightHalo), type: 'vec3<f32>' },
+        uDarkHalo: { value: rgbOf(palette.darkHalo), type: 'vec3<f32>' },
+        uThreshold: { value: (luminance(palette.lightText) + luminance(palette.darkText)) / 2, type: 'f32' },
+        uFallbackLuminance: { value: luminance(theme.backgroundColor), type: 'f32' },
+        uSampleRadius: { value: sampleRadius, type: 'f32' },
+    });
+    return new pixi.Filter({
+        glProgram: pixi.GlProgram.from({ vertex: subtitleVertex, fragment: subtitleFragment, name: 'subtitle-contrast' }),
+        // blendRequired：Pixi 把滤镜范围里已经画好的像素拷进 uBackTexture。
+        blendRequired: true,
+        resources: { subtitleUniforms: uniforms, uBackTexture: pixi.Texture.EMPTY },
+        // 衬底模糊后比它自己的包围盒大，范围不留出来就会被裁成方块。
+        padding,
+        // 必须是 'inherit'，理由见 packs/tempera/temperaDifferenceFilter.ts：输入与背景纹理的像素尺寸要一致。
+        resolution: 'inherit',
+    });
+};
+
 export const buildSubtitleLayer = (
     pixi: PixiModule,
     width: number,
@@ -135,19 +254,22 @@ export const buildSubtitleLayer = (
     theme: Theme,
     tuning: KernelTuning['subtitles'],
     lines: Line[],
+    renderResolution = 1,
 ): SubtitleLayer => {
     const container = new pixi.Container();
     const glow = new pixi.Graphics();
-    const glowBlur = new pixi.BlurFilter({ strength: 24, quality: 3 });
+    const glowStrength = 24;
+    const glowBlur = new pixi.BlurFilter({ strength: glowStrength, quality: 3 });
     glow.filters = [glowBlur];
     const fontSize = Math.round(Math.min(width, height) * 0.036 * tuning.scale);
+    // 颜色由滤镜上：字画在绿通道、衬底画在红通道。
     const text = new pixi.Text({
         text: '',
         style: new pixi.TextStyle({
             fontFamily: resolveThemeFontStack(theme),
             fontWeight: String(resolveThemeFontWeight(theme, 500)) as import('pixi.js').TextStyleFontWeight,
             fontSize,
-            fill: theme.secondaryColor,
+            fill: '#00ff00',
             align: 'center',
             wordWrap: true,
             wordWrapWidth: width * 0.8,
@@ -156,9 +278,10 @@ export const buildSubtitleLayer = (
     });
     text.anchor.set(0.5, 1);
     container.addChild(glow, text);
+    const contrast = createSubtitleContrastFilter(pixi, theme, fontSize * 0.6 * renderResolution, glowStrength * 2);
+    container.filters = [contrast];
     const baseY = height - Math.max(28, height * 0.075);
     let shownIndex = -2;
-    const bg = colorNumber(pixi, theme.backgroundColor);
 
     const update = (time: number) => {
         const current = findSubtitleLine(lines, time);
@@ -174,7 +297,7 @@ export const buildSubtitleLayer = (
             glow.clear();
             const w = text.width + fontSize * 3;
             const h = text.height + fontSize * 1.6;
-            glow.ellipse(width / 2, baseY - text.height / 2, w / 2, h / 2).fill({ color: bg, alpha: 0.8 });
+            glow.ellipse(width / 2, baseY - text.height / 2, w / 2, h / 2).fill({ color: 0xff0000, alpha: 0.8 });
         }
         // 与 folia 的 DOM 字幕一样：换行时 0.24s 淡入并上移 10px。
         const enter = Math.min(1, Math.max(0, (time - current.line.startTime) / 0.24));
@@ -188,6 +311,8 @@ export const buildSubtitleLayer = (
         container,
         update,
         destroy: () => {
+            container.filters = null;
+            contrast.destroy();
             glow.filters = null;
             glowBlur.destroy();
             destroyPixiDisplayTree(container);

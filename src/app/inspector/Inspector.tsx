@@ -6,7 +6,7 @@ import { mergeWithPrevious, resetParagraphStructure } from '@/project/structure'
 import { pickParagraphKind } from '../arrangeActions';
 import { log } from '../output';
 import { StylePickerGrid } from './StylePickerGrid';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Heart, Lock, Ban, Unlock } from 'lucide-react';
 import { borrowableTypographies, familyLabel, findPack, getStyle, getTransition, listPacks } from '@/packs/registry';
 import { DEFAULT_MIX_BY_KIND, mixAssignment, mixOverrides, PARAGRAPH_KINDS, type LumiParagraph, type LumiShot, type PackId, type StyleId, type TransitionId } from '@/compiler/types';
@@ -22,10 +22,10 @@ import {
     toggleFavorite,
     unlockShotStyle,
 } from '@/project/edits';
-import { repairLineSegmentation, resetLineText, resetLineTiming, segmentationRepairFor, setLineBounds, setLineSegments } from '@/project/lyrics';
+import { repairLineSegmentation, resetLineText, resetLineTiming, resetLineTranslation, segmentationRepairFor, setLineBounds, setLineSegments, setLineTranslation } from '@/project/lyrics';
 import { setSession, useSession } from '@/project/session';
 import { updateProject, useProjectStore } from '@/project/store';
-import { useProgram } from '../DerivedProvider';
+import { useEffectiveLyrics, useProgram } from '../DerivedProvider';
 import { seek } from '../playback';
 import { packLabel, packShortLabel } from '../StylePanel';
 import { formatTime } from '../Transport';
@@ -266,6 +266,10 @@ function LineInspector({ index }: { index: number }) {
     }, [segments, line, index]);
     const savedParts = useProjectStore(state => state.project.lyricEdits.segments.find(item => item.anchor.index === index)?.parts);
     const [draft, setDraft] = useState<string | null>(null);
+    const [translationDraft, setTranslationDraft] = useState<string | null>(null);
+    // Esc 放弃编辑：失焦时不写回。
+    const discardTranslation = useRef(false);
+    const originalTranslation = useEffectiveLyrics().source?.lines[index]?.translation;
     const current = useMemo(() => (line ? segmentLyricWords(line).map((part, i, parts) => (
         line.fullText.slice(part.index, parts[i + 1]?.index ?? line.fullText.length)
     )) : []), [line]);
@@ -278,7 +282,23 @@ function LineInspector({ index }: { index: number }) {
         <>
             <Section title={`第 ${index + 1} 行`}>
                 <div data-selectable className="text-sm text-zinc-100">{line.fullText}</div>
-                {line.translation && <div data-selectable className="text-xs text-zinc-400">{line.translation}</div>}
+                <Field label="译文" hint="字幕里显示的译文；清空就不显示这一行的译文。">
+                    <input
+                        value={translationDraft ?? line.translation ?? ''}
+                        placeholder="（没有译文）"
+                        onChange={event => setTranslationDraft(event.target.value)}
+                        onBlur={() => {
+                            if (translationDraft !== null && !discardTranslation.current) setLineTranslation(anchor, translationDraft, originalTranslation);
+                            discardTranslation.current = false;
+                            setTranslationDraft(null);
+                        }}
+                        onKeyDown={event => {
+                            if (event.key === 'Escape') discardTranslation.current = true;
+                            if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur();
+                        }}
+                        className={inputClass}
+                    />
+                </Field>
                 <div className="grid grid-cols-2 gap-2">
                     <Field label="开始（秒）">
                         <input
@@ -299,6 +319,7 @@ function LineInspector({ index }: { index: number }) {
                     <Button size="sm" onClick={() => seek(line.startTime)}>跳到这里</Button>
                     {hasTiming && <Button size="sm" variant="ghost" onClick={() => resetLineTiming(anchor)}>恢复原始时间</Button>}
                     {edit?.text !== undefined && <Button size="sm" variant="ghost" onClick={() => resetLineText(anchor)}>恢复原文</Button>}
+                    {edit?.translation !== undefined && <Button size="sm" variant="ghost" onClick={() => resetLineTranslation(anchor)}>恢复译文</Button>}
                 </div>
             </Section>
             <Section title="分词">

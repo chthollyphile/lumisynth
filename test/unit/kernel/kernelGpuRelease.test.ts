@@ -25,13 +25,18 @@ describe('内核图层销毁时放掉 Graphics 的 context', () => {
     });
 
     it('译文字幕：光晕的 context 随图层销毁', () => {
-        // 模糊 filter 编着色器要 WebGL 上下文，node 里没有；只替换它，Graphics 与文字用真的 Pixi。
-        class HeadlessBlur { destroy() { /* 没有 GPU 程序可放 */ } }
-        const headless = { ...pixi, BlurFilter: HeadlessBlur } as unknown as typeof pixi;
+        // filter 编着色器要 WebGL 上下文，node 里没有；只替换它们，Graphics 与文字用真的 Pixi。
+        class HeadlessFilter {
+            destroyed = false;
+            destroy() { this.destroyed = true; }
+        }
+        const headless = { ...pixi, BlurFilter: HeadlessFilter, Filter: HeadlessFilter, GlProgram: { from: () => null } } as unknown as typeof pixi;
         const layer = buildSubtitleLayer(headless, 1600, 900, theme, DEFAULT_KERNEL_TUNING.subtitles, []);
         const contexts = graphicsIn(layer.container).map(graphics => graphics.context);
         expect(contexts).toHaveLength(1);
+        const [contrast] = layer.container.filters as unknown as HeadlessFilter[];
         layer.destroy();
         expect(contexts.every(context => context.destroyed)).toBe(true);
+        expect(contrast.destroyed).toBe(true);
     });
 });

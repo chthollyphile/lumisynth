@@ -4,7 +4,7 @@ import { setSession } from '@/project/session';
 import { updateProject } from '@/project/store';
 import { applyScript, type ApplyScriptResult, type ScriptEnv } from './apply';
 import { printScript } from './print';
-import { applySettings, type ApplySettingsResult } from './settings';
+import { applySettings, type ApplySettingsOptions, type ApplySettingsResult } from './settings';
 import type { LumiProject } from '@/project/types';
 
 /** 剧本文本的短哈希（FNV-1a）。 */
@@ -28,8 +28,8 @@ export const commitScript = (text: string, env: ScriptEnv): ApplyScriptResult =>
 };
 
 /** 应用设置（JSON sidecar）：没有错误时一步写进撤销栈。 */
-export const commitSettings = (text: string, project: LumiProject): ApplySettingsResult => {
-    const result = applySettings(text, project);
+export const commitSettings = (text: string, project: LumiProject, options?: ApplySettingsOptions): ApplySettingsResult => {
+    const result = applySettings(text, project, options);
     if (result.ok && result.project !== project) updateProject(() => result.project);
     setSession({ scriptProblems: result.diagnostics.filter(item => item.severity !== 'info') });
     return result;

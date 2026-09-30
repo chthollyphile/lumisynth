@@ -329,6 +329,25 @@ describe('edits', () => {
         expect(envOf(worded.project).program.lines[index].line.words[1].startTime).toBeCloseTo(line.startTime + 0.05, 2);
         expect(apply(worded.project, printed(worded.project)).project).toBe(worded.project);
 
+        // 译文：块里写 translation（none 不显示），写回歌词文件里的译文就去掉修改。
+        const withTranslation = song.map((item, i) => (i === index ? { ...item, translation: '原来的译文' } : item));
+        const envT = (project: LumiProject) => envOf(project, withTranslation);
+        const printT = (project: LumiProject) => printScript(envT(project)).text;
+        const applyT = (project: LumiProject, text: string) => applyScript(text, envT(project));
+        const translated = applyT(project0, script0.replace(match[0], `${match[0]} {\n    translation "新的译文"\n  }`));
+        expect(translated.changes).toEqual([`第 ${index + 1} 行的译文改为「新的译文」`]);
+        expect(envT(translated.project).program.lines[index].line.translation).toBe('新的译文');
+        expect(printT(translated.project)).toContain('    translation "新的译文"');
+        expect(printT(translated.project)).toContain('改过译文，原来 "原来的译文"');
+        expect(applyT(translated.project, printT(translated.project)).project).toBe(translated.project);
+        const hidden = applyT(translated.project, printT(translated.project).replace('translation "新的译文"', 'translation none'));
+        expect(hidden.changes).toEqual([`第 ${index + 1} 行不显示译文`]);
+        expect(envT(hidden.project).program.lines[index].line.translation).toBeUndefined();
+        expect(printT(hidden.project)).toContain('    translation none');
+        const untranslated = applyT(hidden.project, printT(hidden.project).replace('    translation none\n', ''));
+        expect(untranslated.changes).toEqual([`第 ${index + 1} 行恢复原样`]);
+        expect(untranslated.project.lyricEdits.lines).toEqual([]);
+
         // 回到原文：修改去掉。
         const restored = apply(retyped.project, printed(retyped.project).replace(JSON.stringify(`${text}！`), match[2]));
         expect(restored.changes).toEqual([`第 ${index + 1} 行恢复原样`]);
@@ -442,6 +461,26 @@ describe('diagnostics', () => {
         expect(problem.hint).toContain('shot-mixing on');
         expect(result.project).toBe(project0);
 
+        // 开了按镜头混用、块里还留着原来那个包的组件：去掉并提示，照常应用。
+        const mixing = replaceOnce(shotLine(script0, 1, 1, line => line.replace(paragraph.shots[0].style, foreign)), 'shot-mixing off', 'shot-mixing on');
+        const leftover = apply(project0, mixing);
+        expect(errorsOf(leftover)).toEqual([]);
+        const fits = (packId: string, slot: string, value: string) => Boolean(getPack(packId as never).componentSlots?.some(def => def.id === slot && def.options.some(option => option.id === value)));
+        const newPack = foreign.split('/')[0];
+        const foreignComponents = Object.entries(paragraph.shots[0].components).filter(([slot, value]) => !fits(newPack, slot, value));
+        expect(foreignComponents.length).toBeGreaterThan(0);
+        expect(leftover.diagnostics.filter(item => item.code === 'LS903')).toHaveLength(foreignComponents.length);
+        expect(envOf(leftover.project).program.paragraphs[0].shots[0]).toMatchObject({ style: foreign, locked: true });
+        expect(envOf(leftover.project).program.invalidOps).toEqual([]);
+        // 不是原来的取值（写错了，不是留下来的）：照样是错误。
+        const [slot, value] = foreignComponents[0];
+        const other = getPack(paragraph.shots[0].pack).componentSlots!.find(def => def.id === slot)!.options
+            .map(option => option.id).find(id => id !== value && !fits(newPack, slot, id));
+        if (other) {
+            const wrong = replaceOnce(mixing, new RegExp(`^ {4}${slot} ${value}$`, 'm'), `    ${slot} ${other}`);
+            expect(errorsOf(apply(project0, wrong)).map(item => item.code)).toEqual([expect.stringMatching(/^LS20[56]$/)]);
+        }
+
         const tooMany = addToParagraph(script0, 1, `  shot ${paragraph.shots.length + 1} ${paragraph.shots[0].style} locked`);
         expect(errorsOf(apply(project0, tooMany))[0]).toMatchObject({ code: 'LS317', message: `第 1 段只有 ${paragraph.shots.length} 个镜头` });
     });
@@ -485,6 +524,18 @@ describe('settings sidecar', () => {
         expect(partial.changes).toEqual(['画幅']);
         expect(partial.project.aspect).toBe('9:16');
         expect(partial.project.theme).toBe(project0.theme);
+
+        // 合并方式：只改写到的字段，同一部分里别的字段不动；主题只写一种颜色也行。
+        const tuned = applySettings('{ "tuning": { "kernel": { "subtitles": { "opacity": 0.9 } } } }', { ...project0, tuning: { ...project0.tuning, kernel: { ...project0.tuning.kernel, subtitles: { mode: 'translation', scale: 1.3, opacity: 0.6 } } } }, { merge: true });
+        expect(tuned.changes).toEqual(['tuning']);
+        expect(tuned.project.tuning.kernel.subtitles).toEqual({ mode: 'translation', scale: 1.3, opacity: 0.9 });
+        const accent = applySettings('{ "theme": { "dark": { "accentColor": "#00ff00" } } }', project0, { merge: true });
+        expect(accent.ok).toBe(true);
+        expect(accent.project.theme.dual.dark).toEqual({ ...project0.theme.dual.dark, accentColor: '#00ff00' });
+        // 整体替换时同样的写法缺了必填字段。
+        expect(applySettings('{ "theme": { "dark": { "accentColor": "#00ff00" } } }', project0).ok).toBe(false);
+        // 合并方式照样查键名与类型。
+        expect(applySettings('{ "tuning": { "kernel": { "subtitles": { "opacty": 0.9 } } } }', project0, { merge: true }).diagnostics[0]).toMatchObject({ code: 'LS502' });
     });
 
     it('locates JSON errors, unknown keys and wrong types', () => {

@@ -55,12 +55,14 @@ export interface WordNode {
     text: At<string>;
 }
 
-/** 歌词行：line 行号 时间 "文字" [{ parts … / word … }]。 */
+/** 歌词行：line 行号 时间 "文字" [{ translation … / parts … / word … }]。 */
 export interface LyricLineNode extends Span {
     /** 行号（1 起）。 */
     number: At<number>;
     range: At<{ start: number; end: number }>;
     text: At<string>;
+    /** 译文：字符串，none（值为空字符串）表示不显示；null（没写）表示用歌词文件里的译文。 */
+    translation: At<string> | null;
     parts: At<string[]> | null;
     /** 逐字时间；null 表示按改字规则推出来。 */
     words: WordNode[] | null;
@@ -146,7 +148,7 @@ export interface ParseResult {
 export const ASSET_BLENDS: AssetBlend[] = ['normal', 'add', 'multiply', 'screen'];
 export const TOP_KEYWORDS = ['lumiscript', 'seed', 'direction', 'mix', 'shot-mixing', 'lyric-offset', 'paragraphs', 'paragraph', 'backgrounds', 'background', 'clips', 'clip'];
 export const PARAGRAPH_KEYWORDS = ['lines', 'line', 'pack', 'energy', 'families', 'transition', 'shot'];
-export const LINE_KEYWORDS = ['parts', 'word'];
+export const LINE_KEYWORDS = ['translation', 'parts', 'word'];
 export const CLIP_KEYWORDS = ['asset', 'at', 'extend', 'slot', 'position', 'scale', 'rotate', 'opacity', 'flip', 'blend', 'follow', 'enter', 'exit', 'effect', 'motion'];
 export const BACKGROUND_KEYWORDS = ['source', 'at', 'fit', 'ken-burns', 'blur', 'dim', 'fade'];
 export const TIMING_USAGE = 'song / m:ss.cc-m:ss.cc / lines a..b / paragraph N / shot P.S';
@@ -358,11 +360,19 @@ export const parseScript = (text: string): ParseResult => {
             number: at(integer(numberToken, '行号'), numberToken),
             range: at(range(rangeToken, '行的时间'), rangeToken),
             text: at(str(textToken, '歌词'), textToken),
+            translation: null,
             parts: null,
             words: null,
         };
         each(current.block ?? [], () => {
             if (current.block) fail(`${current.head.text} 后面不带 { … } 块`, current.head, 'LS117');
+            if (current.head.text === 'translation') {
+                count(1, 1, 'translation "译文" | none');
+                const token = current.args[0]!;
+                const value = token.string === undefined && token.text === 'none' ? '' : str(token, '译文');
+                setOnce(node, 'translation', at(value, token));
+                return;
+            }
             if (current.head.text === 'parts') {
                 if (current.args.length === 0) fail('缺少分词：parts "词" "词" …');
                 const parts = current.args.map(token => str(token, '分词'));

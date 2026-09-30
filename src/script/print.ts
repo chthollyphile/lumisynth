@@ -108,7 +108,7 @@ const shotLines = (program: LumiProgram, paragraph: LumiParagraph, shot: LumiSho
     ];
 };
 
-/** 歌词行：line 行号 时间 "文字"，时间是歌词文件的时间（不含 lyric-offset）。逐字时间、分词只在手动调过时写出来。 */
+/** 歌词行：line 行号 时间 "文字"，时间是歌词文件的时间（不含 lyric-offset）。译文、逐字时间、分词只在手动改过时写出来。 */
 const lyricLines = (program: LumiProgram, paragraph: LumiParagraph, project: LumiProject, sourceLines: Line[] | null): ScriptLine[] => {
     if (!sourceLines) return [];
     const offset = project.lyricEdits.offset;
@@ -122,15 +122,18 @@ const lyricLines = (program: LumiProgram, paragraph: LumiParagraph, project: Lum
         const ref = { paragraphId: paragraph.id, lineIndex: index };
         const comment = note([
             edit?.text !== undefined && source ? `改过字，原文 ${quote(source.fullText)}` : null,
+            edit?.translation !== undefined && source ? (source.translation?.trim() ? `改过译文，原来 ${quote(source.translation.trim())}` : '译文是加上的') : null,
             edit && (edit.startTime !== undefined || edit.endTime !== undefined) && source ? `时间改过，原来 ${formatRange(source.startTime, source.endTime)}` : null,
             stale ? `手动分词已失效：${segments.parts.map(quote).join(' ')}` : null,
         ]);
         const head = `  line ${index + 1} ${formatRange(item.line.startTime - offset, item.line.endTime - offset)} ${quote(item.line.fullText)}`;
         const words = edit?.words ? item.line.words : null;
         const parts = segments && !stale ? segments.parts : null;
-        if (!words && !parts) return [{ text: `${head}${comment}`, ...ref }];
+        const translation = edit?.translation;
+        if (!words && !parts && translation === undefined) return [{ text: `${head}${comment}`, ...ref }];
         return [
             { text: `${head} {${comment}`, ...ref },
+            ...(translation !== undefined ? [{ text: `    translation ${translation ? quote(translation) : 'none'}`, ...ref }] : []),
             ...(parts ? [{ text: `    parts ${parts.map(quote).join(' ')}`, ...ref }] : []),
             ...(words ?? []).map(word => ({ text: `    word ${formatRange(word.startTime - offset, word.endTime - offset)} ${quote(word.text)}`, ...ref })),
             { text: '  }', ...ref },

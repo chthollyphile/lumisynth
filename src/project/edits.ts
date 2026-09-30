@@ -13,6 +13,7 @@ import type {
     TransitionId,
 } from '@/compiler/types';
 import type { LineAnchor } from '@/core/lyrics/edits';
+import { findPack, getStyle } from '@/packs/registry';
 import { newId } from './defaults';
 import { updateProject } from './store';
 import type { LumiProject } from './types';
@@ -74,9 +75,20 @@ export const setParagraphTransition = (paragraph: LumiParagraph, transition: Tra
 // ---------------------------------------------------------------------------------------------
 // shot 风格锁定
 
-/** style 为 null 时解锁。 */
+/** 这个包的镜头有这个组件槽与取值（借用的排版由编译时细查）。 */
+const fitsPack = (pack: PackId, slot: string, value: string) => {
+    const def = findPack(pack)?.componentSlots?.find(item => item.id === slot);
+    return Boolean(def && (def.options.some(option => option.id === value) || (slot === 'typography' && value.includes('/'))));
+};
+
+/** style 为 null 时解锁。换成别的包的风格时，这个镜头上那个包用不上的组件一起去掉。 */
 export const withShotStyle = (project: LumiProject, anchor: ShotAnchor, style: StyleId | null): LumiProject => {
-    const others = project.overrides.filter(op => !(op.type === 'shot-style' && sameLine(op.anchor.line, anchor.line) && op.anchor.slot === anchor.slot));
+    const pack = style ? getStyle(style)?.pack : undefined;
+    const others = project.overrides.filter(op => {
+        if (op.type === 'transition' || !sameLine(op.anchor.line, anchor.line) || op.anchor.slot !== anchor.slot) return true;
+        if (op.type === 'shot-style') return false;
+        return !pack || fitsPack(pack, op.slot, op.value);
+    });
     if (style === null) return { ...project, overrides: others };
     const op: EditOp = { id: newId(), type: 'shot-style', anchor, style };
     return { ...project, overrides: [...others, op] };

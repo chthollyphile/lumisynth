@@ -28,6 +28,11 @@ export interface Resolved {
     clips: Map<ClipNode, AssetClip | 'new'>;
     backgrounds: Map<BackgroundNode, BackgroundClip | 'new'>;
     assets: Map<At<string>, LibraryAsset>;
+    /**
+     * 写在换了风格的镜头上、却属于别的包的组件（多半是换包时留下的原来那个包的组件）。
+     * 要对照镜头原来的样子才知道是不是留下的，放到应用时判断：是就去掉并提示，不是就报这条错误。
+     */
+    foreignComponents: Map<object, Diagnostic>;
 }
 
 const TOLERANCE = 0.011;
@@ -43,7 +48,7 @@ const packIds = () => listPacks().map(pack => pack.id);
 
 export const checkScript = (doc: ScriptDoc, { project, program, sourceLines }: CheckInput): { diagnostics: Diagnostic[]; resolved: Resolved } => {
     const diagnostics: Diagnostic[] = [];
-    const resolved: Resolved = { ranges: new Map(), clips: new Map(), backgrounds: new Map(), assets: new Map() };
+    const resolved: Resolved = { ranges: new Map(), clips: new Map(), backgrounds: new Map(), assets: new Map(), foreignComponents: new Map() };
     const lineCount = program.lines.length;
 
     const packCheck = (at: At<string> | null | undefined, allowAuto = false) => {
@@ -116,9 +121,11 @@ export const checkScript = (doc: ScriptDoc, { project, program, sourceLines }: C
                 diagnostics.push(unknownName('LS202', shot.style, `没有风格 ${shot.style.value}`, shot.style.value, allStyles().map(item => item.id)));
                 return;
             }
-            shot.components.forEach(({ slot, value }) => {
-                const problem = componentProblem(style.pack, style.kind, slot, value);
-                if (problem) diagnostics.push(problem);
+            shot.components.forEach(component => {
+                const problem = componentProblem(style.pack, style.kind, component.slot, component.value);
+                if (!problem) return;
+                if (belongsToOtherPack(style.pack, component.slot.value, component.value.value)) resolved.foreignComponents.set(component, problem);
+                else diagnostics.push(problem);
             });
         });
 
@@ -241,6 +248,10 @@ export const checkScript = (doc: ScriptDoc, { project, program, sourceLines }: C
     });
     return { diagnostics, resolved };
 };
+
+/** 别的包有这个组件槽与取值（借用的排版不细查）。 */
+const belongsToOtherPack = (packId: string, slot: string, value: string) => listPacks().some(pack => pack.id !== packId
+    && pack.componentSlots?.some(def => def.id === slot && (def.options.some(option => option.id === value) || (slot === 'typography' && value.includes('/')))));
 
 /** 组件槽与取值能不能用在 pack/kind 这个风格的镜头上；可以时返回 null。 */
 export const componentProblem = (packId: string, kind: string, slot: At<string>, value: At<string>): Diagnostic | null => {

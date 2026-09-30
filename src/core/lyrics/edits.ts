@@ -1,5 +1,5 @@
 // src/core/lyrics/edits.ts
-// 在编译前作用于 LyricData 的用户修改：整体偏移、逐行修改（改字、行时间、逐字时间）、手动分词。
+// 在编译前作用于 LyricData 的用户修改：整体偏移、逐行修改（改字、改译文、行时间、逐字时间）、手动分词。
 // 每条修改都按歌词文件里的「行序号 + 原文哈希」锚定：换了歌词文件、行对不上时修改失效并列出来，
 // 而不是悄悄套到另一行上。改字不改锚点——生效后的行带着原文哈希（sourceHash），所有锚点都按它算。
 import type { Line, LyricData, Word } from '@/core/types';
@@ -33,11 +33,13 @@ export const resolveLineAnchor = (lines: Line[], anchor: LineAnchor): number | n
  * 一行的修改。时间都是歌词文件的时间（不含整体偏移）。
  * - 只有 startTime / endTime：整行拖动 / 拖两端，逐字时间按比例跟着伸缩；
  * - 有 words：逐字时间是明确给出的（手动调过，或者改字时算好的），行的开始 / 结束只作为边界；
- * - text：改过的文字。没有 words 时逐字时间按「没变的字保留时间」从原来的行推出来。
+ * - text：改过的文字。没有 words 时逐字时间按「没变的字保留时间」从原来的行推出来；
+ * - translation：改过的译文（字幕）。空字符串表示这一行不显示译文。
  */
 export interface LineEdit {
     anchor: LineAnchor;
     text?: string;
+    translation?: string;
     startTime?: number;
     endTime?: number;
     words?: TimedUnit[];
@@ -127,7 +129,7 @@ const asWords = (units: TimedUnit[]): Word[] => units.map(unit => ({ text: unit.
 
 /** 把一条行修改套到原来的行上（都是歌词文件的时间）。 */
 export const applyLineEdit = (line: Line, edit: LineEdit): Line => {
-    let next = line;
+    let next = edit.translation === undefined ? line : { ...line, translation: edit.translation || undefined };
     const text = edit.text ?? line.fullText;
     const explicit = edit.words && unitsMatchText(text, edit.words) ? edit.words : null;
     if (text !== line.fullText) {

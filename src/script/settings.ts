@@ -2,6 +2,8 @@
 // 剧本的 sidecar：「设置」——剧本只管场景编排，其余工程设置（名称与歌曲信息、画幅、主题、字体、
 // 风格库偏好、编排参数、内核与各风格包的 tuning）写成一份 JSON，可以直接改、Ctrl+S 应用（一步撤销）。
 // 规则与剧本相同：写了的部分整体换成写的样子（缺的字段取默认值），没写的部分不动。
+// 合并方式（agent 的 apply_settings 默认用它）：写的 JSON 逐层并进当前设置，只改写到的字段；
+// 数组与其他值整个替换。
 // 字段的类型按默认值推断（包的 tuning 由包的 defaults 给出），不认识的键、类型不对是错误，
 // 超出范围被夹住的值给提示。诊断的编号是 LS5xx，位置标回 JSON 里的键或值。
 import { DEFAULT_ENGINE_PARAMS, DEFAULT_STRUCTURE_PARAMS, normalizeEngineParams, type EngineParams } from '@/compiler/params';
@@ -174,7 +176,8 @@ const typeName = (schema: Schema): string => {
     }
 };
 
-const validate = (value: unknown, schema: Schema, path: JsonPath, located: JsonLocated, diagnostics: Diagnostic[]) => {
+/** partial：合并方式下不查必填字段（没写的取当前值）。 */
+const validate = (value: unknown, schema: Schema, path: JsonPath, located: JsonLocated, diagnostics: Diagnostic[], partial = false) => {
     const at = (target: JsonPath = path): Span => located.values.get(pathKey(target)) ?? { line: 1 };
     const keyAt = (target: JsonPath): Span => located.keys.get(pathKey(target)) ?? at(target);
     const name = path.length ? path.join('.') : '设置';
@@ -182,7 +185,7 @@ const validate = (value: unknown, schema: Schema, path: JsonPath, located: JsonL
     switch (schema.kind) {
         case 'any': return;
         case 'nullable':
-            if (value !== null) validate(value, schema.of, path, located, diagnostics);
+            if (value !== null) validate(value, schema.of, path, located, diagnostics, partial);
             return;
         case 'number':
             if (typeof value !== 'number') return wrong();
@@ -206,7 +209,7 @@ const validate = (value: unknown, schema: Schema, path: JsonPath, located: JsonL
         }
         case 'array':
             if (!Array.isArray(value)) return wrong();
-            if (schema.of) value.forEach((item, index) => validate(item, schema.of!, [...path, index], located, diagnostics));
+            if (schema.of) value.forEach((item, index) => validate(item, schema.of!, [...path, index], located, diagnostics, partial));
             return;
         case 'object':
         case 'map': {
@@ -222,9 +225,9 @@ const validate = (value: unknown, schema: Schema, path: JsonPath, located: JsonL
                     }));
                     return;
                 }
-                validate(item, child, [...path, key], located, diagnostics);
+                validate(item, child, [...path, key], located, diagnostics, partial);
             });
-            if (schema.kind === 'object') {
+            if (schema.kind === 'object' && !partial) {
                 schema.required?.filter(key => !(key in record)).forEach(key => diagnostics.push(error('LS503', at(), `${name} 缺少 ${key}`)));
             }
             return;
@@ -267,7 +270,22 @@ const canonical = (value: unknown): unknown => {
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
-export const applySettings = (text: string, project: LumiProject): ApplySettingsResult => {
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/** 把 patch 逐层并进 base：对象按键合并，其余（数组、数字、null……）整个替换。 */
+export const mergeSettings = (base: unknown, patch: unknown): unknown => {
+    if (!isRecord(base) || !isRecord(patch)) return patch;
+    const merged: Record<string, unknown> = { ...base };
+    Object.entries(patch).forEach(([key, value]) => { merged[key] = key in base ? mergeSettings(base[key], value) : value; });
+    return merged;
+};
+
+export interface ApplySettingsOptions {
+    /** 只改写到的字段（合并进当前设置），而不是把写了的部分整体换掉。 */
+    merge?: boolean;
+}
+
+export const applySettings = (text: string, project: LumiProject, options: ApplySettingsOptions = {}): ApplySettingsResult => {
     const diagnostics: Diagnostic[] = [];
     const fail = () => ({ project, changes: [], diagnostics, ok: false });
     let located: JsonLocated;
@@ -278,12 +296,15 @@ export const applySettings = (text: string, project: LumiProject): ApplySettings
         diagnostics.push(error('LS501', caught.span, `JSON 写法不对：${caught.message}`));
         return fail();
     }
-    validate(located.value, SETTINGS_SCHEMA(), [], located, diagnostics);
+    const merge = options.merge === true;
+    validate(located.value, SETTINGS_SCHEMA(), [], located, diagnostics, merge);
     if (hasErrors(diagnostics)) return fail();
-    const input = located.value as Partial<ProjectSettings>;
     const current = settingsOf(project);
+    const written = located.value as Partial<ProjectSettings>;
+    // 合并方式：写到的部分并进当前值，之后照整体替换的规则走（没变的部分不算修改）。
+    const input = (merge ? mergeSettings(current, written) : written) as Partial<ProjectSettings>;
     const styles = new Set(allStyles().map(style => style.id));
-    (['favorites', 'blocked'] as const).forEach(list => input.library?.[list]?.forEach((style, index) => {
+    (['favorites', 'blocked'] as const).forEach(list => written.library?.[list]?.forEach((style, index) => {
         if (styles.has(style)) return;
         const close = suggest(style, [...styles]);
         diagnostics.push(warning('LS507', located.values.get(pathKey(['library', list, index])) ?? { line: 1 }, `没有风格 ${style}（装上对应的包之后才起作用）`, {

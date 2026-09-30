@@ -4,7 +4,7 @@
 //   - 段落块：只要写了一个，分段、段落性质、段落编排、出场转场、镜头的锁定与组件就全部按剧本来。
 //     生成的剧本把自动选出的值也写出来：值没改、也没标 locked / @ai 的保持自动（换 seed 会重新选），
 //     改了值或者标了 locked / @ai 的固定下来；没写的指令、写 auto 的是自动；`paragraphs auto` 全部交回自动；
-//   - 歌词行：写了的行按写的来（文字、时间、逐字、分词），没写的行不动；
+//   - 歌词行：写了的行按写的来（文字、译文、时间、逐字、分词），没写的行不动；
 //   - 背景块 / 素材片段块：写了已有的片段（带 id）或 `backgrounds none` / `clips none`，就是完整的列表
 //     （没写的片段删除，none 先清空）；只写了新片段（不带 id）就是加上这些。
 // 编排里做不到的指令（风格锁不上、镜头不存在……）是错误，标回写它的那一行。
@@ -154,10 +154,13 @@ const applyTop = (doc: ScriptDoc, project: LumiProject, changes: string[]): Lumi
 // ---------------------------------------------------------------------------------------------
 // 歌词行
 
-const sameLineEffect = (a: Line, b: Line) => a.fullText === b.fullText
-    && near(a.startTime, b.startTime) && near(a.endTime, b.endTime)
-    && a.words.length === b.words.length
+const sameWords = (a: Line, b: Line) => a.words.length === b.words.length
     && a.words.every((word, i) => word.text === b.words[i].text && near(word.startTime, b.words[i].startTime) && near(word.endTime, b.words[i].endTime));
+
+const sameLineEffect = (a: Line, b: Line) => a.fullText === b.fullText
+    && (a.translation ?? '') === (b.translation ?? '')
+    && near(a.startTime, b.startTime) && near(a.endTime, b.endTime)
+    && sameWords(a, b);
 
 const applyLyrics = (doc: ScriptDoc, project: LumiProject, { program, sourceLines }: ScriptEnv, changes: string[]): LumiProject => {
     if (!sourceLines) return project;
@@ -173,6 +176,8 @@ const applyLyrics = (doc: ScriptDoc, project: LumiProject, { program, sourceLine
         const { start, end } = node.range.value;
         const wanted: LineEdit = { anchor };
         if (text !== source.fullText) wanted.text = text;
+        const translation = node.translation?.value.replace(/[\r\n]+/g, ' ').trim();
+        if (translation !== undefined && translation !== (source.translation ?? '').trim()) wanted.translation = translation;
         if (!near(start, source.startTime) || !near(end, source.endTime)) {
             wanted.startTime = start;
             wanted.endTime = end;
@@ -183,13 +188,15 @@ const applyLyrics = (doc: ScriptDoc, project: LumiProject, { program, sourceLine
         const before = existing ? applyLineEdit(source, existing) : source;
         const after = applyLineEdit(source, wanted);
         if (!sameLineEffect(before, after)) {
-            const empty = wanted.text === undefined && wanted.startTime === undefined && wanted.words === undefined;
+            const empty = wanted.text === undefined && wanted.translation === undefined && wanted.startTime === undefined && wanted.words === undefined;
             lines = [...lines.filter(item => item !== existing), ...(empty ? [] : [wanted])];
             if (empty) changes.push(`${label}恢复原样`);
             else {
+                const translationChanged = (after.translation ?? '') !== (before.translation ?? '');
                 if (after.fullText !== before.fullText) changes.push(`${label}改字：「${before.fullText}」→「${after.fullText}」`);
+                if (translationChanged) changes.push(after.translation ? `${label}的译文改为「${after.translation}」` : `${label}不显示译文`);
                 if (!near(after.startTime, before.startTime) || !near(after.endTime, before.endTime)) changes.push(`${label}的时间改为 ${formatRange(start, end)}`);
-                else if (after.fullText === before.fullText) changes.push(`${label}的逐字时间`);
+                else if (after.fullText === before.fullText && !sameWords(before, after)) changes.push(`${label}的逐字时间`);
             }
         }
 
@@ -395,7 +402,21 @@ const applyParagraphs = (
             const shown = printed[node.number.value - 1];
             const style = node.style;
             const lockStyle = style && (marked(style) || style.value !== shown?.style);
-            const components = node.components.filter(({ slot, value }) => value.value !== 'auto' && (marked(value) || value.value !== shown?.components[slot.value]));
+            // 换成别的包的风格时，剧本里还留着原来那个包的组件：去掉（换包后组件由新包自动选），给个提示。
+            const was = shown ? getStyle(shown.style) : undefined;
+            const written = node.components.filter(component => {
+                const problem = resolved.foreignComponents.get(component);
+                if (!problem) return true;
+                const { slot, value } = component;
+                const leftover = was && style && was.pack !== getStyle(style.value)?.pack && shown?.components[slot.value] === value.value;
+                if (leftover) {
+                    diagnostics.push(warning('LS903', slot, `${style.value} 属于 ${getStyle(style.value)?.pack}，原来 ${was.pack} 的组件 ${slot.value} ${value.value} 用不上，已去掉`, {
+                        hint: '换了包之后组件由新包自动选；想指定就写新包的组件槽（见 list_styles），也可以直接删掉这一行',
+                    }));
+                } else diagnostics.push(problem);
+                return false;
+            });
+            const components = written.filter(({ slot, value }) => value.value !== 'auto' && (marked(value) || value.value !== shown?.components[slot.value]));
             if (!lockStyle && components.length === 0) return;
             const shot = targets[node.number.value - 1];
             if (!shot) {

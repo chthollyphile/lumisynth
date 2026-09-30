@@ -1,5 +1,5 @@
 // src/project/lyrics.ts
-// 歌词的编辑动作：整体偏移、行的开始 / 结束、改字、逐字时间、手动分词（含改字后的自动修复）。
+// 歌词的编辑动作：整体偏移、行的开始 / 结束、改字、改译文、逐字时间、手动分词（含改字后的自动修复）。
 // 传进来的 current 是生效后的行（含整体偏移，界面上看到的就是它），存进工程的是歌词文件的时间。
 // with* 是纯函数（剧本、agent 也用），其余是进撤销栈的动作。
 import type { LineAnchor, LineEdit } from '@/core/lyrics/edits';
@@ -13,15 +13,24 @@ const sameLine = (a: LineAnchor, b: LineAnchor) => a.index === b.index && a.hash
 
 export const lineEditOf = (project: LumiProject, anchor: LineAnchor) => project.lyricEdits.lines.find(item => sameLine(item.anchor, anchor));
 
-const isEmpty = (edit: LineEdit) => edit.text === undefined && edit.startTime === undefined && edit.endTime === undefined && edit.words === undefined;
+const isEmpty = (edit: LineEdit) => edit.text === undefined && edit.translation === undefined
+    && edit.startTime === undefined && edit.endTime === undefined && edit.words === undefined;
 
-/** 改写一行的修改；recipe 返回 null 或空修改时删掉这一条。 */
+/** 两条修改的内容相同（不计键的顺序与值为 undefined 的键）。 */
+const sameEdit = (a: LineEdit | null | undefined, b: LineEdit | null | undefined) => {
+    if (!a || !b) return !a && !b;
+    const canonical = (edit: LineEdit) => JSON.stringify(Object.entries(edit).filter(([, value]) => value !== undefined).sort(([x], [y]) => x.localeCompare(y)));
+    return canonical(a) === canonical(b);
+};
+
+/** 改写一行的修改；recipe 返回 null 或空修改时删掉这一条；修改没有变化时返回原来的工程。 */
 const withLineEdit = (project: LumiProject, anchor: LineAnchor, recipe: (existing: LineEdit | undefined) => LineEdit | null): LumiProject => {
     const existing = lineEditOf(project, anchor);
     const next = recipe(existing);
     const others = project.lyricEdits.lines.filter(item => !sameLine(item.anchor, anchor));
-    const lines = next && !isEmpty(next) ? [...others, { ...next, anchor }] : others;
-    if (!next && !existing) return project;
+    const kept = next && !isEmpty(next) ? { ...next, anchor } : null;
+    if (sameEdit(kept, existing)) return project;
+    const lines = kept ? [...others, kept] : others;
     return { ...project, lyricEdits: { ...project.lyricEdits, lines } };
 };
 
@@ -67,6 +76,18 @@ export const withLineText = (project: LumiProject, anchor: LineAnchor, current: 
 };
 
 /**
+ * 改译文（字幕）：空字符串表示这一行不显示译文；与歌词文件里的译文相同时去掉这条修改。
+ * original 是歌词文件里这一行的译文。
+ */
+export const withLineTranslation = (project: LumiProject, anchor: LineAnchor, translation: string, original: string | undefined): LumiProject => {
+    const clean = translation.replace(/[\r\n]+/g, ' ').trim();
+    return withLineEdit(project, anchor, existing => {
+        const { translation: _previous, ...rest } = existing ?? { anchor };
+        return clean === (original ?? '').trim() ? { ...rest, anchor } : { ...rest, anchor, translation: clean };
+    });
+};
+
+/**
  * 逐字时间（生效时间）。单元的文字必须拼得回这一行的文字（不计空白）；bounds 不给时沿用行现在的开始 / 结束。
  * 返回 null 表示单元对不上文字。
  */
@@ -85,15 +106,24 @@ export const withLineWords = (
     return withLineEdit(project, anchor, existing => ({ ...existing, anchor, startTime, endTime, words: normalized }));
 };
 
-/** 恢复原始时间（保留改过的字；逐字时间重新从原来的行推出来）。 */
+const keptTranslation = (edit: LineEdit) => (edit.translation !== undefined ? { translation: edit.translation } : {});
+
+/** 恢复原始时间（保留改过的字与译文；逐字时间重新从原来的行推出来）。 */
 export const withoutLineTiming = (project: LumiProject, anchor: LineAnchor): LumiProject => withLineEdit(project, anchor, existing => (
-    existing ? { anchor, ...(existing.text !== undefined ? { text: existing.text } : {}) } : null
+    existing ? { anchor, ...(existing.text !== undefined ? { text: existing.text } : {}), ...keptTranslation(existing) } : null
 ));
 
-/** 恢复原文（保留行的开始 / 结束；逐字时间随原文恢复）。 */
+/** 恢复原文（保留行的开始 / 结束与改过的译文；逐字时间随原文恢复）。 */
 export const withoutLineText = (project: LumiProject, anchor: LineAnchor): LumiProject => withLineEdit(project, anchor, existing => (
-    existing ? { anchor, startTime: existing.startTime, endTime: existing.endTime } : null
+    existing ? { anchor, startTime: existing.startTime, endTime: existing.endTime, ...keptTranslation(existing) } : null
 ));
+
+/** 恢复歌词文件里的译文。 */
+export const withoutLineTranslation = (project: LumiProject, anchor: LineAnchor): LumiProject => withLineEdit(project, anchor, existing => {
+    if (!existing) return null;
+    const { translation: _translation, ...rest } = existing;
+    return rest;
+});
 
 /** 这一行的修改全部去掉。 */
 export const withoutLineEdit = (project: LumiProject, anchor: LineAnchor): LumiProject => withLineEdit(project, anchor, () => null);
@@ -128,6 +158,7 @@ export const setLineBounds = (anchor: LineAnchor, current: Line, bounds: { start
 );
 
 export const setLineText = (anchor: LineAnchor, current: Line, text: string) => updateProject(project => withLineText(project, anchor, current, text));
+export const setLineTranslation = (anchor: LineAnchor, translation: string, original: string | undefined) => updateProject(project => withLineTranslation(project, anchor, translation, original));
 
 /** 拖逐字时间。coalesce 相同的连续修改合并成一步撤销（一次拖动传同一个 key）。 */
 export const setLineWords = (anchor: LineAnchor, current: Line, words: TimedUnit[], bounds?: { startTime: number; endTime: number }, coalesce?: string) => {
@@ -142,6 +173,7 @@ export const setLineWords = (anchor: LineAnchor, current: Line, words: TimedUnit
 
 export const resetLineTiming = (anchor: LineAnchor) => updateProject(project => withoutLineTiming(project, anchor));
 export const resetLineText = (anchor: LineAnchor) => updateProject(project => withoutLineText(project, anchor));
+export const resetLineTranslation = (anchor: LineAnchor) => updateProject(project => withoutLineTranslation(project, anchor));
 export const resetLine = (anchor: LineAnchor) => updateProject(project => withoutLineEdit(project, anchor));
 
 export const setLineSegments = (anchor: LineAnchor, parts: string[] | null) => updateProject(project => withLineSegments(project, anchor, parts));

@@ -42,7 +42,7 @@ import { addAssetClip, addBackgroundClip, isInTemperaPool, removeAssetClip, remo
 import { resolveBackgroundClips, type BackgroundClip, type BackgroundSource } from '@/core/assets/background';
 import { mergeWithPrevious, moveParagraphStart, resetParagraphStructure, setParagraphKind, splitParagraphAt } from '@/project/structure';
 import { normalizeTypography } from '@/project/typography';
-import { segmentationRepairFor, withLineBounds, withLineText, withLineWords, withoutLineEdit, withoutLineText, withoutLineTiming, withRepairedSegmentation } from '@/project/lyrics';
+import { segmentationRepairFor, withLineBounds, withLineText, withLineTranslation, withLineWords, withoutLineEdit, withoutLineText, withoutLineTiming, withoutLineTranslation, withRepairedSegmentation } from '@/project/lyrics';
 import { editableUnits } from '@/core/lyrics/wordEditing';
 import { getAgentState, getPreviewKernel, getScriptEnv } from './host';
 
@@ -400,7 +400,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     {
         name: 'get_lyrics',
         title: '歌词',
-        description: 'Lyric lines with index (from 0), timing, text, `interlude` (true for the "......" placeholder lines filling long instrumental gaps), translation, word timing units ({text, startTime, endTime}), current word segmentation (manual or automatic) and what was edited by hand (text, line timing, word timing; whether a manual segmentation no longer matches edited text).',
+        description: 'Lyric lines with index (from 0), timing, text, `interlude` (true for the "......" placeholder lines filling long instrumental gaps), translation (the subtitle shown under the lyric; null when there is none), word timing units ({text, startTime, endTime}), current word segmentation (manual or automatic) and what was edited by hand (text, translation, line timing, word timing; whether a manual segmentation no longer matches edited text).',
         inputSchema: {
             type: 'object',
             properties: {
@@ -429,6 +429,7 @@ export const AGENT_TOOLS: AgentTool[] = [
                     segmentationStale: Boolean(segments && segments.parts.join('') !== line.line.fullText),
                     edited: {
                         text: edit?.text !== undefined,
+                        translation: edit?.translation !== undefined,
                         lineTiming: edit?.startTime !== undefined || edit?.endTime !== undefined,
                         wordTiming: Boolean(edit?.words),
                     },
@@ -532,11 +533,12 @@ export const AGENT_TOOLS: AgentTool[] = [
     {
         name: 'apply_settings',
         title: '应用设置',
-        description: 'Apply project settings JSON as one undo step. Only the top-level sections present are replaced (a present section is taken as a whole; missing fields inside it get their defaults), e.g. {"aspect": "9:16"} or {"tuning": {"kernel": {…}}}. Unknown keys and wrong types are errors with the position and a suggestion; values clamped into range are reported as warnings.',
+        description: 'Apply project settings JSON as one undo step. By default (mode "merge") only the fields you write change: the JSON is merged into the current settings key by key, so {"tuning": {"kernel": {"subtitles": {"opacity": 0.9}}}} changes that one value and keeps everything else; arrays (e.g. wordColors, library.favorites) and other values are replaced as a whole. Mode "replace" is the rule of the 设置 tab of the editor: each top-level section present is taken as a whole and missing fields inside it get their defaults. Unknown keys and wrong types are errors with the position and a suggestion; values clamped into range are reported as warnings.',
         inputSchema: {
             type: 'object',
             properties: {
-                settings: { type: 'string', description: 'JSON text: the get_settings output edited, or only some sections' },
+                settings: { type: 'string', description: 'JSON text: only the fields to change (merge), or the get_settings output edited' },
+                mode: { type: 'string', enum: ['merge', 'replace'], description: 'merge (default): change only the fields written; replace: each section written replaces that section, missing fields get their defaults' },
                 version: { type: 'string', description: 'The version from get_settings' },
                 force: { type: 'boolean', description: 'Apply even if the settings changed since get_settings' },
             },
@@ -549,7 +551,9 @@ export const AGENT_TOOLS: AgentTool[] = [
             if (version && version !== scriptVersion(printSettings(project)) && args.force !== true) {
                 throw new ToolInputError('设置已过期：工程在 get_settings 之后改过。重新 get_settings 再改，或者传 force: true');
             }
-            const result = commitSettings(str(args, 'settings')!, project);
+            const mode = str(args, 'mode', true) ?? 'merge';
+            if (mode !== 'merge' && mode !== 'replace') throw new ToolInputError('mode 只能是 merge / replace');
+            const result = commitSettings(str(args, 'settings')!, project, { merge: mode === 'merge' });
             const warnings = result.diagnostics.filter(item => item.severity === 'warning').map(formatDiagnostic);
             if (!result.ok) return { isError: true, content: [{ type: 'text', text: ['没有应用，设置有错误：', ...result.diagnostics.filter(item => item.severity === 'error').map(formatDiagnostic)].join('\n') }] };
             if (result.changes.length === 0) return text(['没有修改', ...warnings].join('\n'));
@@ -790,25 +794,48 @@ export const AGENT_TOOLS: AgentTool[] = [
     {
         name: 'set_line_text',
         title: '改歌词',
-        description: 'Change the text of one lyric line. Characters that did not change keep their timing; new characters share the time of what they replaced. Everything attached to the line (paragraph direction, locks, clips) stays valid. If the line had a manual segmentation that no longer spells the new text, the result says so and includes the proposed repair (apply it with fix_segmentation).',
+        description: 'Change the text and/or the translation of one lyric line (give at least one of them). Text: characters that did not change keep their timing; new characters share the time of what they replaced. Everything attached to the line (paragraph direction, locks, clips) stays valid. If the line had a manual segmentation that no longer spells the new text, the result says so and includes the proposed repair (apply it with fix_segmentation). Translation: the subtitle shown under the lyric; an empty string hides it for this line (e.g. a credit such as "translated by …" or a "//" placeholder that the lyric file put into the translation), and writing the translation of the lyric file again drops the edit (reset_lyric_line with what "translation" does the same).',
         inputSchema: {
             type: 'object',
-            properties: { line: { type: 'integer', minimum: 0, description: 'Lyric line index (from get_lyrics)' }, text: { type: 'string' } },
-            required: ['line', 'text'],
+            properties: {
+                line: { type: 'integer', minimum: 0, description: 'Lyric line index (from get_lyrics)' },
+                text: { type: 'string', description: 'New lyric text' },
+                translation: { type: 'string', description: 'New translation (subtitle); "" hides it' },
+            },
+            required: ['line'],
         },
         readOnly: false,
         run: args => {
-            const { project, program } = getAgentState();
+            const { project, program, lyrics } = getAgentState();
             const index = num(args, 'line', { min: 0 });
             const item = program.lines[index];
             if (!item) throw new ToolInputError(`没有第 ${index} 行`);
-            const text = str(args, 'text')!;
-            if (!text.trim()) throw new ToolInputError('歌词不能是空的');
-            const next = withLineText(project, item.anchor, item.line, text);
-            if (next === project) throw new ToolInputError('文字没有变化');
+            const text = str(args, 'text', true);
+            const translation = args.translation;
+            if (text === undefined && translation === undefined) throw new ToolInputError('text 与 translation 至少给一个');
+            if (translation !== undefined && typeof translation !== 'string') throw new ToolInputError('translation 必须是字符串（空字符串表示不显示译文）');
+            if (text !== undefined && !text.trim()) throw new ToolInputError('歌词不能是空的');
+            let next = project;
+            const summary: string[] = [];
+            if (text !== undefined) {
+                next = withLineText(next, item.anchor, item.line, text);
+                if (next !== project) summary.push(`第 ${index} 行改为「${text}」`);
+            }
+            if (translation !== undefined) {
+                const original = lyrics.source?.lines[item.anchor.index]?.translation;
+                const before = next;
+                next = withLineTranslation(next, item.anchor, translation, original);
+                const was = item.line.translation ?? '';
+                const now = translation.replace(/[\r\n]+/g, ' ').trim();
+                if (now !== was.trim()) summary.push(now ? `第 ${index} 行的译文改为「${now}」` : `第 ${index} 行不显示译文`);
+                else next = before;
+            }
+            if (summary.length === 0) throw new ToolInputError('文字与译文都没有变化');
             updateProject(() => next);
-            const repair = segmentationRepairFor(next, item.anchor, { ...item.line, fullText: text.replace(/[\r\n]+/g, ' ') });
-            return done('set_line_text', `第 ${index} 行改为「${text}」`, repair ? { segmentationStale: true, proposedSegmentation: repair } : {});
+            const repair = text !== undefined
+                ? segmentationRepairFor(next, item.anchor, { ...item.line, fullText: text.replace(/[\r\n]+/g, ' ') })
+                : null;
+            return done('set_line_text', summary.join('，'), repair ? { segmentationStale: true, proposedSegmentation: repair } : {});
         },
     },
     {
@@ -884,10 +911,10 @@ export const AGENT_TOOLS: AgentTool[] = [
     {
         name: 'reset_lyric_line',
         title: '恢复歌词行',
-        description: 'Undo hand edits of one lyric line: what "text" restores the original text, "timing" restores line and word timing, "all" both.',
+        description: 'Undo hand edits of one lyric line: what "text" restores the original text, "translation" the translation of the lyric file, "timing" line and word timing, "all" everything.',
         inputSchema: {
             type: 'object',
-            properties: { line: { type: 'integer', minimum: 0 }, what: { type: 'string', enum: ['text', 'timing', 'all'] } },
+            properties: { line: { type: 'integer', minimum: 0 }, what: { type: 'string', enum: ['text', 'translation', 'timing', 'all'] } },
             required: ['line', 'what'],
         },
         readOnly: false,
@@ -898,13 +925,15 @@ export const AGENT_TOOLS: AgentTool[] = [
             if (!item) throw new ToolInputError(`没有第 ${index} 行`);
             const what = str(args, 'what');
             const next = what === 'text' ? withoutLineText(project, item.anchor)
-                : what === 'timing' ? withoutLineTiming(project, item.anchor)
-                    : what === 'all' ? withoutLineEdit(project, item.anchor)
-                        : null;
-            if (!next) throw new ToolInputError('what 只能是 text / timing / all');
+                : what === 'translation' ? withoutLineTranslation(project, item.anchor)
+                    : what === 'timing' ? withoutLineTiming(project, item.anchor)
+                        : what === 'all' ? withoutLineEdit(project, item.anchor)
+                            : null;
+            if (!next) throw new ToolInputError('what 只能是 text / translation / timing / all');
             if (next === project) throw new ToolInputError('这一行没有这类修改');
             updateProject(() => next);
-            return done('reset_lyric_line', `第 ${index} 行恢复了${what === 'text' ? '原文' : what === 'timing' ? '原始时间' : '原样'}`);
+            const restored = { text: '原文', translation: '原来的译文', timing: '原始时间', all: '原样' }[what as 'text' | 'translation' | 'timing' | 'all'];
+            return done('reset_lyric_line', `第 ${index} 行恢复了${restored}`);
         },
     },
     {
@@ -1055,7 +1084,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     {
         name: 'set_shot_style',
         title: '镜头风格',
-        description: 'Lock one shot to a style id (from list_styles), or "auto" to unlock. A style from another pack only takes effect when direction.shotMixing is on.',
+        description: 'Lock one shot to a style id (from list_styles), or "auto" to unlock. A style from another pack only takes effect when direction.shotMixing is on; switching to another pack also drops the component overrides of this shot that the new pack does not have.',
         inputSchema: { type: 'object', properties: { paragraph: PARAGRAPH, shot: SHOT, style: { type: 'string' } }, required: ['paragraph', 'shot', 'style'] },
         readOnly: false,
         run: args => {

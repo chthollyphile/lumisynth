@@ -216,7 +216,7 @@ describe('agent tools', () => {
 
     it('edits lyric text, line timing and word timing; repairs a stale segmentation; resets', async () => {
         const [line] = await callJson('get_lyrics', { from: 2, to: 2 });
-        expect(line.edited).toEqual({ text: false, lineTiming: false, wordTiming: false });
+        expect(line.edited).toEqual({ text: false, translation: false, lineTiming: false, wordTiming: false });
         expect(line.words.map((word: { text: string }) => word.text).join('')).toBe(line.text.replace(/\s+/g, ''));
 
         await call('set_segmentation', { lines: [{ index: 2, parts: [line.text.slice(0, 2), line.text.slice(2)] }] });
@@ -248,6 +248,47 @@ describe('agent tools', () => {
         await call('reset_lyric_line', { line: 2, what: 'all' });
         [after] = await callJson('get_lyrics', { from: 2, to: 2 });
         expect(after).toMatchObject({ text: line.text, edited: { text: false, lineTiming: false, wordTiming: false } });
+    });
+
+    it('edits and hides translations, by tool and by script', async () => {
+        const translations = ['以下歌词翻译由文曲大模型提供', '//', ...Array.from({ length: 22 }, (_, index) => `译文 ${index + 2}`)];
+        const translation = LRC.split('\n').map((row, index) => `${row.slice(0, row.indexOf(']') + 1)}${translations[index]}`).join('\n');
+        useProjectStore.getState().replace({ ...useProjectStore.getState().project, translation: { fileName: 'song.tr.lrc', content: translation } });
+        let [first, second] = await callJson('get_lyrics', { from: 0, to: 1 });
+        expect(first.translation).toBe('以下歌词翻译由文曲大模型提供');
+
+        expect((await call('set_line_text', { line: 0 })).result.isError).toBe(true);
+        await call('set_line_text', { line: 0, translation: '' });
+        await call('set_line_text', { line: 1, translation: '新的译文' });
+        [first, second] = await callJson('get_lyrics', { from: 0, to: 1 });
+        expect(first).toMatchObject({ translation: null, edited: { translation: true, text: false } });
+        expect(second).toMatchObject({ translation: '新的译文', edited: { translation: true } });
+        // 字幕层读到的是改过的行。
+        expect(getAgentState().program.lines[0].line.translation).toBeUndefined();
+
+        // 剧本里写出来；写回歌词文件里的译文就去掉这条修改。
+        const script = (await call('get_script')).text.replace(/# version \w+\n$/, '');
+        expect(script).toMatch(/ {2}line 1 [^\n]*\{[^\n]*\n {4}translation none\n/);
+        expect(script).toContain('    translation "新的译文"');
+        const restored = JSON.parse((await call('apply_script', { script: script.replace('    translation "新的译文"', '    translation "//"') })).text);
+        expect(restored.changes).toEqual(['第 2 行恢复原样']);
+        expect(useProjectStore.getState().project.lyricEdits.lines.map(edit => edit.anchor.index)).toEqual([0]);
+
+        await call('reset_lyric_line', { line: 0, what: 'translation' });
+        [first] = await callJson('get_lyrics', { from: 0, to: 0 });
+        expect(first).toMatchObject({ translation: '以下歌词翻译由文曲大模型提供', edited: { translation: false } });
+        expect(useProjectStore.getState().project.lyricEdits.lines).toEqual([]);
+    });
+
+    it('drops the components of the old pack when a shot is restyled to another pack', async () => {
+        await call('set_paragraph_direction', { paragraph: 1, pack: 'tempera' });
+        await call('apply_script', { script: 'shot-mixing on\n' });
+        await call('set_shot_component', { paragraph: 1, shot: 0, slot: 'accent', value: 'doodle' });
+        expect(useProjectStore.getState().project.overrides.filter(op => op.type === 'shot-component')).toHaveLength(1);
+        const result = JSON.parse((await call('set_shot_style', { paragraph: 1, shot: 0, style: 'sonnet/type-impact' })).text);
+        expect(result.invalidOps).toBe(0);
+        expect(useProjectStore.getState().project.overrides.filter(op => op.type === 'shot-component')).toEqual([]);
+        expect((await callJson('get_arrangement', { paragraph: 1 })).shots[0].style).toBe('sonnet/type-impact');
     });
 
     it('changes lyric text through apply_script', async () => {
@@ -432,6 +473,15 @@ describe('agent tools', () => {
         const bad = await call('apply_settings', { settings: '{ "aspect": "2:1" }' });
         expect(bad.result.isError).toBe(true);
         expect(bad.text).toContain('LS504');
+
+        // 默认只改写到的字段；replace 按「设置」标签的规则整块替换。
+        const opacity = JSON.parse((await call('apply_settings', { settings: '{ "tuning": { "kernel": { "subtitles": { "opacity": 0.9 } } } }' })).text);
+        expect(opacity.changes).toEqual(['tuning']);
+        expect(useProjectStore.getState().project.tuning.kernel.subtitles).toMatchObject({ opacity: 0.9, mode: 'translation', scale: 1 });
+        await call('apply_settings', { settings: '{ "tuning": { "kernel": { "subtitles": { "scale": 1.2 } } } }' });
+        expect(useProjectStore.getState().project.tuning.kernel.subtitles).toMatchObject({ opacity: 0.9, scale: 1.2 });
+        await call('apply_settings', { settings: '{ "tuning": { "kernel": { "subtitles": { "scale": 1.2 } } } }', mode: 'replace' });
+        expect(useProjectStore.getState().project.tuning.kernel.subtitles).toMatchObject({ opacity: 0.6, scale: 1.2 });
 
         const reference = (await call('script_reference')).text;
         expect(reference).toContain('name: lumiscript');
