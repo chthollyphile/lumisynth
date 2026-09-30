@@ -4,6 +4,10 @@
 
 在浏览器里把一首歌做成歌词 PV：导入音频和字幕，自动编排镜头，按需微调，导出视频。
 
+**在线使用：<https://lumisynth.cielaniska.top/>**
+
+[![Powered by Cloudflare](https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
+
 ![工作台](docs/images/workbench.png)
 
 ## 主要功能
@@ -32,7 +36,7 @@
 
 ## 开始使用
 
-- **网页版**：打开部署好的页面即可，无需安装。
+- **网页版**：打开 <https://lumisynth.cielaniska.top/> 即可，无需安装。
 - **桌面版**：Windows / macOS / Linux 安装包在 [Releases](../../releases) 下载，离线也能编辑与导出，见 [docs/DESKTOP.md](docs/DESKTOP.md)。
 
 基本流程：选择音频 → 导入字幕 → 预览自动编排的结果 → 在时间轴上调整 → 导出视频。
@@ -46,6 +50,10 @@ AI 是可选的。在「AI」侧栏选择提供方（Google Gemini、OpenAI 兼�
 ## 部署
 
 构建产物 `dist/` 是纯静态文件，任何静态托管都可以（找不到的路径回退到 `index.html`）。仓库已带好 Cloudflare Workers（`npm run cf:deploy`）与 Vercel（直接导入仓库）的配置。
+
+点下面的按钮可以一键部署到自己的 Cloudflare 账号：
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chthollyphile/lumisynth)
 
 ## 开发
 

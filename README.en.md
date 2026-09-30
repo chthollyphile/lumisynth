@@ -4,7 +4,11 @@
 
 Turn a song into a lyric video, right in your browser: import the audio and lyrics, let it lay out the shots automatically, fine-tune what you like, and export a video.
 
-> The interface is currently in Chinese only.
+**Try it online: <https://lumisynth.cielaniska.top/>**
+
+[![Powered by Cloudflare](https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
+
+The interface is available in Chinese and English (switch it in the language selector).
 
 ![Workbench](docs/images/workbench.png)
 
@@ -34,7 +38,7 @@ To write your own style pack, see [docs/PACKS.md](docs/PACKS.md) (Chinese).
 
 ## Getting started
 
-- **Web**: just open a deployed instance — nothing to install.
+- **Web**: just open <https://lumisynth.cielaniska.top/> — nothing to install.
 - **Desktop**: installers for Windows / macOS / Linux are on the [Releases](../../releases) page; works offline. See [docs/DESKTOP.md](docs/DESKTOP.md) (Chinese).
 
 Basic flow: choose audio → import lyrics → preview the automatic direction → adjust on the timeline → export.
@@ -48,6 +52,10 @@ To let an agent direct the video: download the local bridge `lumisynth-mcp.mjs` 
 ## Deployment
 
 The build output `dist/` is plain static files and runs on any static host (fall back unknown paths to `index.html`). Configs for Cloudflare Workers (`npm run cf:deploy`) and Vercel (import the repo) are included.
+
+Deploy your own copy to Cloudflare in one click:
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chthollyphile/lumisynth)
 
 ## Development
 
