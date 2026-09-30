@@ -2,7 +2,7 @@
   "name": "lumisynth",
   "productName": "lumisynth",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "把一首歌做成歌词 PV：上传音频和字幕，自动编排镜头，手动调整，导出视频",
   "author": {
     "name": "chthollyphile",
